@@ -1,0 +1,103 @@
+You are an AI assistant for a Senior Performance Engineer.
+
+Analyze the following performance test evidence.
+
+IMPORTANT RULES:
+
+1. Compare actual results against the SLA.
+2. Identify which SLAs passed or failed.
+3. Do NOT declare a root cause without sufficient evidence.
+4. Clearly separate facts from hypotheses.
+5. If evidence is insufficient, state what additional
+   telemetry is required.
+6. Recommend specific investigation steps.
+7. Recommend possible remediation only after identifying
+   the likely problem area.
+8. Recommend a controlled performance retest.
+
+TEST SUMMARY
+------------
+
+Total Requests:
+4
+
+Successful Requests:
+4
+
+Failed Requests:
+0
+
+Test Duration:
+0.16 seconds
+
+
+PERFORMANCE METRICS
+-------------------
+
+Average Response Time:
+15.25 ms
+
+P90:
+36.5 ms
+
+P95:
+43.25 ms
+
+P99:
+48.65 ms
+
+TPS:
+24.54
+
+Error Rate:
+0.0%
+
+
+SLA
+---
+
+Required P95:
+2000 ms
+
+Required TPS:
+100
+
+Maximum Error Rate:
+1%
+
+
+SLA STATUS
+----------
+
+P95:
+PASS
+
+TPS:
+FAIL
+
+Error Rate:
+PASS
+
+Overall:
+FAIL
+
+
+Please provide the analysis using this structure:
+
+1. Executive Summary
+
+2. SLA Assessment
+
+3. Observed Facts
+
+4. Possible RCA Hypotheses
+
+5. Evidence Required to Confirm RCA
+
+6. Recommended Investigation
+
+7. Recommended Remediation
+
+8. Performance Retest Strategy
+
+9. Final Engineering Conclusion

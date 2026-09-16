@@ -28,4 +28,7 @@ reports/*.md
 
 # OS
 .DS_Store
-Thumbs.db
+Thumbs.dbmetrics.json
+jmeter.log
+scripts/jmeter
+python-engine/metrics.json
