@@ -28,26 +28,26 @@ Failed Requests:
 0
 
 Test Duration:
-0.16 seconds
+0.17 seconds
 
 
 PERFORMANCE METRICS
 -------------------
 
 Average Response Time:
-15.25 ms
+15.5 ms
 
 P90:
-36.5 ms
+37.2 ms
 
 P95:
-43.25 ms
+44.1 ms
 
 P99:
-48.65 ms
+49.62 ms
 
 TPS:
-24.54
+23.95
 
 Error Rate:
 0.0%
