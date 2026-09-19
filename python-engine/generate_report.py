@@ -2,7 +2,10 @@ import json
 import os
 from datetime import datetime
 
-BASE_DIR = r"E:\ai-perf-framework"
+BASE_DIR = os.environ.get(
+    "WORKSPACE",
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 
 METRICS_FILE = os.path.join(
     BASE_DIR, "python-engine", "metrics.json"

@@ -6,10 +6,24 @@ import os
 # File locations
 # ---------------------------------------
 
-METRICS_FILE = r"E:\ai-perf-framework\python-engine\metrics.json"
 
-PROMPT_FILE = r"E:\ai-perf-framework\ai-engine\rca_prompt.txt"
 
+WORKSPACE = os.environ.get(
+    "WORKSPACE",
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+
+METRICS_FILE = os.path.join(
+    WORKSPACE,
+    "python-engine",
+    "metrics.json"
+)
+
+PROMPT_FILE = os.path.join(
+    WORKSPACE,
+    "ai-engine",
+    "rca_prompt.txt"
+)
 
 # ---------------------------------------
 # Load performance metrics

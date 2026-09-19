@@ -8,8 +8,15 @@ import statistics
 # File locations
 # ---------------------------------------
 
-JTL_FILE = r"E:\ai-perf-framework\scripts\results.jtl"
-OUTPUT_FILE = r"E:\ai-perf-framework\python-engine\metrics.json"
+
+
+WORKSPACE = os.environ.get(
+    "WORKSPACE",
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+
+JTL_FILE = os.path.join(WORKSPACE, "scripts", "results.jtl")
+OUTPUT_FILE = os.path.join(WORKSPACE, "python-engine", "metrics.json")
 
 
 # ---------------------------------------
