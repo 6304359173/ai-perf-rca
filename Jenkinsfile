@@ -100,6 +100,8 @@ pipeline {
                     copy /Y scripts\\results.jtl "%WORKSPACE%\\results\\results.jtl"
 
                     copy /Y python-engine\\metrics.json "%WORKSPACE%\\results\\metrics.json"
+					
+					copy /Y ai-engine\\mcp_rca_evidence.json "%WORKSPACE%\\results\\mcp_rca_evidence.json"
 
                     copy /Y ai-engine\\rca_prompt.txt "%WORKSPACE%\\results\\rca_prompt.txt"
 
