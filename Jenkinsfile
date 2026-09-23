@@ -69,7 +69,7 @@ pipeline {
 				echo 'Collecting performance evidence through MCP...'
 
 				bat '''
-					python mcp-server\\mcp_client.py
+					"C:\\Users\\LENOVO\\AppData\\Local\\Programs\\Python\\Python314\\python.exe" mcp-server\\mcp_client.py
 
 					echo ===== MCP Evidence =====
 					type ai-engine\\mcp_rca_evidence.json
