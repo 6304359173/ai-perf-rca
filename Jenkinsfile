@@ -64,7 +64,18 @@ pipeline {
                 '''
             }
         }
+		stage('Collect MCP Evidence') {
+			steps {
+				echo 'Collecting performance evidence through MCP...'
 
+				bat '''
+					python mcp-server\\mcp_client.py
+
+					echo ===== MCP Evidence =====
+					type ai-engine\\mcp_rca_evidence.json
+				'''
+				}
+			}
         stage('Generate RCA Report') {
             steps {
                 echo 'Generating Performance RCA report...'
