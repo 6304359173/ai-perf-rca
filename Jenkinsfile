@@ -89,7 +89,18 @@ pipeline {
                 '''
             }
         }
+		stage('Generate AI RCA') {
+			steps {
+				echo 'Generating AI-based performance RCA...'
 
+				bat '''
+					"C:\\Users\\LENOVO\\AppData\\Local\\Programs\\Python\\Python314\\python.exe" ai-engine\\mock_ai_rca.py
+
+					echo ===== AI RCA REPORT =====
+					type ai-engine\\ai_rca_report.md
+				'''
+			}
+		}
         stage('Collect Reports') {
             steps {
                 echo 'Collecting performance reports...'
