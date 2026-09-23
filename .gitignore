@@ -32,3 +32,6 @@ Thumbs.dbmetrics.json
 jmeter.log
 scripts/jmeter
 python-engine/metrics.json
+ai-engine/ai_rca_prompt_from_mcp.txt
+ai-engine/ai_rca_report.md
+ai-engine/mcp_rca_evidence.json
