@@ -56,6 +56,7 @@ pipeline {
 
                     jmeter -n ^
 					  -JTEST_USERS=%TEST_USERS% ^
+					  -JRAMP_UP=%RAMP_UP% ^
 					  -t scripts/ai_perf_test.jmx ^
 					  -l scripts/results.jtl
                     echo ===== JMeter Result =====
