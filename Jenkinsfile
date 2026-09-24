@@ -50,9 +50,9 @@ pipeline {
                     if exist scripts\\results.jtl del /q scripts\\results.jtl
 
                     jmeter -n ^
-                      -t scripts\\ai_perf_test.jmx ^
-                      -l scripts\\results.jtl
-
+					  -JTEST_USERS=%TEST_USERS% ^
+					  -t scripts\ai_perf_test.jmx ^
+					  -l scripts\results.jtl
                     echo ===== JMeter Result =====
                     dir scripts\\results.jtl
                 '''
