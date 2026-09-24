@@ -1,6 +1,13 @@
 pipeline {
     agent any
 
+    parameters {
+        string(
+            name: 'TEST_USERS',
+            defaultValue: '10',
+            description: 'Number of virtual users for the performance test'
+        )
+    }
     stages {
 
         stage('Environment Check') {
@@ -25,7 +32,6 @@ pipeline {
                 '''
             }
         }
-
         stage('Validate Application') {
             steps {
                 echo 'Checking Order Service...'
