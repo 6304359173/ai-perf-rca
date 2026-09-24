@@ -51,10 +51,10 @@ pipeline {
 
                     jmeter -n ^
 					  -JTEST_USERS=%TEST_USERS% ^
-					  -t scripts\ai_perf_test.jmx ^
-					  -l scripts\results.jtl
+					  -t scripts/ai_perf_test.jmx ^
+					  -l scripts/results.jtl
                     echo ===== JMeter Result =====
-                    dir scripts\\results.jtl
+                    dir scripts/results.jtl
                 '''
             }
         }
