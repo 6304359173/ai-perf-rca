@@ -8,9 +8,9 @@ pipeline {
             description: 'Number of virtual users for the performance test'
         )
 		string(
-        name: 'TEST_USERS',
-        defaultValue: '10',
-        description: 'Number of virtual users for the performance test'
+        name: 'RAMP_UP',
+        defaultValue: '30',
+        description: 'Ramp-up time in seconds'
 		)
     }
     stages {
