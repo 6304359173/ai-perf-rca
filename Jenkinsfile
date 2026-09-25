@@ -12,6 +12,11 @@ pipeline {
         defaultValue: '30',
         description: 'Ramp-up time in seconds'
 		)
+		string(
+        name: 'DURATION',
+        defaultValue: '60',
+        description: 'Test duration in seconds'
+		)
     }
     stages {
 
@@ -57,6 +62,7 @@ pipeline {
                     jmeter -n ^
 					  -JTEST_USERS=%TEST_USERS% ^
 					  -JRAMP_UP=%RAMP_UP% ^
+					  -JDURATION=%DURATION% ^
 					  -t scripts/ai_perf_test.jmx ^
 					  -l scripts/results.jtl
                     echo ===== JMeter Result =====
