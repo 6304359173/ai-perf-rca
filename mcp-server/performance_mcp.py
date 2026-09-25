@@ -141,8 +141,8 @@ def get_sla_status() -> dict:
 @mcp.tool()
 def get_rca_evidence() -> dict:
     """
-    Return consolidated performance and SLA evidence
-    for AI-powered root cause analysis.
+    Return consolidated performance, transaction, failure,
+    and SLA evidence for AI-powered root cause analysis.
     """
 
     if not os.path.exists(METRICS_FILE):
@@ -172,6 +172,16 @@ def get_rca_evidence() -> dict:
             {}
         )
 
+        transaction_summary = metrics.get(
+            "transaction_summary",
+            {}
+        )
+
+        failure_analysis = metrics.get(
+            "failure_analysis",
+            {}
+        )
+
         sla = metrics.get(
             "sla",
             {}
@@ -182,6 +192,8 @@ def get_rca_evidence() -> dict:
             "evidence": {
                 "test_summary": test_summary,
                 "performance_metrics": performance,
+                "transaction_summary": transaction_summary,
+                "failure_analysis": failure_analysis,
                 "sla": sla
             }
         }
@@ -201,7 +213,6 @@ def get_rca_evidence() -> dict:
             "message": "Unable to read RCA evidence.",
             "details": str(error)
         }
-
 # ============================================================
 # Start MCP Server
 # ============================================================
