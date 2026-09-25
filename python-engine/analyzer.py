@@ -8,8 +8,6 @@ import statistics
 # File locations
 # ---------------------------------------
 
-
-
 WORKSPACE = os.environ.get(
     "WORKSPACE",
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -105,10 +103,14 @@ def analyze(rows):
     timestamps = []
 
     # -----------------------------------
-    # Failure analysis containers
+    # Transaction statistics
     # -----------------------------------
 
-    sampler_stats = {}
+    transaction_stats = {}
+
+    # -----------------------------------
+    # Failure analysis
+    # -----------------------------------
 
     response_code_stats = {}
 
@@ -123,7 +125,7 @@ def analyze(rows):
 
         success = row["success"].lower() == "true"
 
-        sampler = (
+        transaction = (
             row.get("label")
             or row.get("sampler")
             or "Unknown"
@@ -139,34 +141,38 @@ def analyze(rows):
         # --------------------------------
 
         if success:
-
             successful += 1
-
         else:
-
             failed += 1
 
         # --------------------------------
-        # Sampler statistics
+        # Transaction statistics
         # --------------------------------
 
-        if sampler not in sampler_stats:
+        if transaction not in transaction_stats:
 
-            sampler_stats[sampler] = {
+            transaction_stats[transaction] = {
+                "response_times": [],
+                "timestamps": [],
                 "total": 0,
                 "successful": 0,
                 "failed": 0
             }
 
-        sampler_stats[sampler]["total"] += 1
+        transaction_stats[transaction]["response_times"].append(
+            elapsed
+        )
+
+        transaction_stats[transaction]["timestamps"].append(
+            timestamp
+        )
+
+        transaction_stats[transaction]["total"] += 1
 
         if success:
-
-            sampler_stats[sampler]["successful"] += 1
-
+            transaction_stats[transaction]["successful"] += 1
         else:
-
-            sampler_stats[sampler]["failed"] += 1
+            transaction_stats[transaction]["failed"] += 1
 
         # --------------------------------
         # Response-code statistics
@@ -183,16 +189,12 @@ def analyze(rows):
         response_code_stats[response_code]["total"] += 1
 
         if success:
-
             response_code_stats[response_code]["successful"] += 1
-
         else:
-
             response_code_stats[response_code]["failed"] += 1
 
-
     # -----------------------------------
-    # Basic metrics
+    # Basic overall metrics
     # -----------------------------------
 
     total = len(rows)
@@ -209,7 +211,6 @@ def analyze(rows):
 
     p99 = percentile(response_times, 99)
 
-
     # -----------------------------------
     # Test duration
     # -----------------------------------
@@ -223,40 +224,113 @@ def analyze(rows):
     )
 
     if duration_seconds <= 0:
-
         duration_seconds = 1
 
-
     # -----------------------------------
-    # TPS
+    # Overall TPS
     # -----------------------------------
 
     tps = total / duration_seconds
 
-
     # -----------------------------------
-    # Error rate
+    # Overall error rate
     # -----------------------------------
 
     error_rate = (
         failed / total
     ) * 100
 
-
     # -----------------------------------
-    # Calculate sampler error rates
+    # Build transaction summary
     # -----------------------------------
 
-    for sampler, stats in sampler_stats.items():
+    transaction_summary = {}
 
-        stats["error_rate_percent"] = round(
-            (
-                stats["failed"]
-                / stats["total"]
-            ) * 100,
-            2
+    for transaction, stats in transaction_stats.items():
+
+        times = stats["response_times"]
+
+        transaction_start = min(
+            stats["timestamps"]
         )
 
+        transaction_end = max(
+            stats["timestamps"]
+        )
+
+        transaction_duration = (
+            transaction_end - transaction_start
+        ) / 1000
+
+        if transaction_duration <= 0:
+            transaction_duration = 1
+
+        transaction_tps = (
+            stats["total"]
+            / transaction_duration
+        )
+
+        transaction_error_rate = (
+            stats["failed"]
+            / stats["total"]
+        ) * 100
+
+        transaction_summary[transaction] = {
+
+            "total": stats["total"],
+
+            "successful": stats["successful"],
+
+            "failed": stats["failed"],
+
+            "error_rate_percent":
+                round(
+                    transaction_error_rate,
+                    2
+                ),
+
+            "average_response_time_ms":
+                round(
+                    statistics.mean(times),
+                    2
+                ),
+
+            "min_response_time_ms":
+                round(
+                    min(times),
+                    2
+                ),
+
+            "max_response_time_ms":
+                round(
+                    max(times),
+                    2
+                ),
+
+            "p90_ms":
+                round(
+                    percentile(times, 90),
+                    2
+                ),
+
+            "p95_ms":
+                round(
+                    percentile(times, 95),
+                    2
+                ),
+
+            "p99_ms":
+                round(
+                    percentile(times, 99),
+                    2
+                ),
+
+            "tps":
+                round(
+                    transaction_tps,
+                    2
+                )
+        }
 
     # -----------------------------------
     # Calculate response-code error rates
@@ -271,7 +345,6 @@ def analyze(rows):
             ) * 100,
             2
         )
-
 
     # -----------------------------------
     # SLA validation
@@ -295,12 +368,15 @@ def analyze(rows):
         and error_pass
     )
 
-
     # -----------------------------------
     # Final result
     # -----------------------------------
 
     metrics = {
+
+        # --------------------------------
+        # Overall test summary
+        # --------------------------------
 
         "test_summary": {
 
@@ -311,48 +387,90 @@ def analyze(rows):
             "failed_requests": failed,
 
             "test_duration_seconds":
-                round(duration_seconds, 2)
+                round(
+                    duration_seconds,
+                    2
+                )
         },
+
+        # --------------------------------
+        # Overall performance metrics
+        # --------------------------------
 
         "performance_metrics": {
 
             "average_response_time_ms":
-                round(average, 2),
+                round(
+                    average,
+                    2
+                ),
 
             "min_response_time_ms":
-                round(minimum, 2),
+                round(
+                    minimum,
+                    2
+                ),
 
             "max_response_time_ms":
-                round(maximum, 2),
+                round(
+                    maximum,
+                    2
+                ),
 
             "p90_ms":
-                round(p90, 2),
+                round(
+                    p90,
+                    2
+                ),
 
             "p95_ms":
-                round(p95, 2),
+                round(
+                    p95,
+                    2
+                ),
 
             "p99_ms":
-                round(p99, 2),
+                round(
+                    p99,
+                    2
+                ),
 
             "tps":
-                round(tps, 2),
+                round(
+                    tps,
+                    2
+                ),
 
             "error_rate_percent":
-                round(error_rate, 2)
+                round(
+                    error_rate,
+                    2
+                )
         },
 
         # --------------------------------
-        # NEW: Failure Analysis
+        # NEW: Transaction Summary
+        # --------------------------------
+
+        "transaction_summary":
+            transaction_summary,
+
+        # --------------------------------
+        # Failure Analysis
         # --------------------------------
 
         "failure_analysis": {
 
             "by_sampler":
-                sampler_stats,
+                transaction_summary,
 
             "by_response_code":
                 response_code_stats
         },
+
+        # --------------------------------
+        # SLA
+        # --------------------------------
 
         "sla": {
 
@@ -366,16 +484,24 @@ def analyze(rows):
                 SLA["error_rate_percent"],
 
             "p95_status":
-                "PASS" if p95_pass else "FAIL",
+                "PASS"
+                if p95_pass
+                else "FAIL",
 
             "tps_status":
-                "PASS" if tps_pass else "FAIL",
+                "PASS"
+                if tps_pass
+                else "FAIL",
 
             "error_rate_status":
-                "PASS" if error_pass else "FAIL",
+                "PASS"
+                if error_pass
+                else "FAIL",
 
             "overall_status":
-                "PASS" if overall_pass else "FAIL"
+                "PASS"
+                if overall_pass
+                else "FAIL"
         }
     }
 
@@ -392,13 +518,21 @@ def main():
     print(" AI Performance JTL Analyzer")
     print("====================================")
 
-    print(f"Reading JTL: {JTL_FILE}")
+    print(
+        f"Reading JTL: {JTL_FILE}"
+    )
 
     rows = read_jtl()
 
-    print(f"Records found: {len(rows)}")
+    print(
+        f"Records found: {len(rows)}"
+    )
 
     metrics = analyze(rows)
+
+    # -----------------------------------
+    # Save JSON
+    # -----------------------------------
 
     with open(
         OUTPUT_FILE,
@@ -411,6 +545,10 @@ def main():
             file,
             indent=4
         )
+
+    # -----------------------------------
+    # Overall Performance
+    # -----------------------------------
 
     print()
     print("Performance Analysis")
@@ -456,6 +594,50 @@ def main():
         f"{metrics['performance_metrics']['error_rate_percent']}%"
     )
 
+    # -----------------------------------
+    # Transaction Summary
+    # -----------------------------------
+
+    print()
+    print("Transaction Summary")
+    print("------------------------------------")
+
+    print(
+        f"{'Transaction':<22}"
+        f"{'Total':>8}"
+        f"{'Success':>10}"
+        f"{'Failed':>9}"
+        f"{'Error %':>10}"
+    )
+
+    print("-" * 59)
+
+    for transaction, stats in (
+        metrics["transaction_summary"].items()
+    ):
+
+        print(
+            f"{transaction:<22}"
+            f"{stats['total']:>8}"
+            f"{stats['successful']:>10}"
+            f"{stats['failed']:>9}"
+            f"{stats['error_rate_percent']:>10.2f}"
+        )
+
+    print("-" * 59)
+
+    print(
+        f"{'TOTAL':<22}"
+        f"{metrics['test_summary']['total_requests']:>8}"
+        f"{metrics['test_summary']['successful_requests']:>10}"
+        f"{metrics['test_summary']['failed_requests']:>9}"
+        f"{metrics['performance_metrics']['error_rate_percent']:>10.2f}"
+    )
+
+    # -----------------------------------
+    # SLA
+    # -----------------------------------
+
     print()
     print(
         f"SLA Status          : "
@@ -463,7 +645,10 @@ def main():
     )
 
     print()
-    print(f"Metrics saved to: {OUTPUT_FILE}")
+    print(
+        f"Metrics saved to: "
+        f"{OUTPUT_FILE}"
+    )
 
 
 if __name__ == "__main__":
