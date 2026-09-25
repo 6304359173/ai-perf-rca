@@ -104,6 +104,14 @@ def analyze(rows):
 
     timestamps = []
 
+    # -----------------------------------
+    # Failure analysis containers
+    # -----------------------------------
+
+    sampler_stats = {}
+
+    response_code_stats = {}
+
     for row in rows:
 
         elapsed = float(row["elapsed"])
@@ -115,10 +123,72 @@ def analyze(rows):
 
         success = row["success"].lower() == "true"
 
+        sampler = (
+            row.get("label")
+            or row.get("sampler")
+            or "Unknown"
+        )
+
+        response_code = (
+            row.get("responseCode")
+            or "UNKNOWN"
+        )
+
+        # --------------------------------
+        # Overall success/failure
+        # --------------------------------
+
         if success:
+
             successful += 1
+
         else:
+
             failed += 1
+
+        # --------------------------------
+        # Sampler statistics
+        # --------------------------------
+
+        if sampler not in sampler_stats:
+
+            sampler_stats[sampler] = {
+                "total": 0,
+                "successful": 0,
+                "failed": 0
+            }
+
+        sampler_stats[sampler]["total"] += 1
+
+        if success:
+
+            sampler_stats[sampler]["successful"] += 1
+
+        else:
+
+            sampler_stats[sampler]["failed"] += 1
+
+        # --------------------------------
+        # Response-code statistics
+        # --------------------------------
+
+        if response_code not in response_code_stats:
+
+            response_code_stats[response_code] = {
+                "total": 0,
+                "successful": 0,
+                "failed": 0
+            }
+
+        response_code_stats[response_code]["total"] += 1
+
+        if success:
+
+            response_code_stats[response_code]["successful"] += 1
+
+        else:
+
+            response_code_stats[response_code]["failed"] += 1
 
 
     # -----------------------------------
@@ -152,9 +222,6 @@ def analyze(rows):
         (end_time - start_time) / 1000
     )
 
-    # For very small tests, make sure
-    # duration is never zero.
-
     if duration_seconds <= 0:
 
         duration_seconds = 1
@@ -174,6 +241,36 @@ def analyze(rows):
     error_rate = (
         failed / total
     ) * 100
+
+
+    # -----------------------------------
+    # Calculate sampler error rates
+    # -----------------------------------
+
+    for sampler, stats in sampler_stats.items():
+
+        stats["error_rate_percent"] = round(
+            (
+                stats["failed"]
+                / stats["total"]
+            ) * 100,
+            2
+        )
+
+
+    # -----------------------------------
+    # Calculate response-code error rates
+    # -----------------------------------
+
+    for code, stats in response_code_stats.items():
+
+        stats["error_rate_percent"] = round(
+            (
+                stats["failed"]
+                / stats["total"]
+            ) * 100,
+            2
+        )
 
 
     # -----------------------------------
@@ -242,6 +339,19 @@ def analyze(rows):
 
             "error_rate_percent":
                 round(error_rate, 2)
+        },
+
+        # --------------------------------
+        # NEW: Failure Analysis
+        # --------------------------------
+
+        "failure_analysis": {
+
+            "by_sampler":
+                sampler_stats,
+
+            "by_response_code":
+                response_code_stats
         },
 
         "sla": {
