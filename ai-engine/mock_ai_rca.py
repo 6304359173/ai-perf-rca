@@ -32,6 +32,17 @@ def load_evidence():
         return json.load(file)
 
 
+def status_text(status):
+
+    if status == "PASS":
+        return "PASS"
+
+    if status == "FAIL":
+        return "FAIL"
+
+    return status
+
+
 def generate_rca(evidence):
 
     data = evidence["evidence"]
@@ -40,19 +51,123 @@ def generate_rca(evidence):
     metrics = data["performance_metrics"]
     sla = data["sla"]
 
+    p95_status = status_text(sla["p95_status"])
+    tps_status = status_text(sla["tps_status"])
+    error_status = status_text(sla["error_rate_status"])
+    overall_status = status_text(sla["overall_status"])
+
+    total_requests = summary["total_requests"]
+    successful_requests = summary["successful_requests"]
+    failed_requests = summary["failed_requests"]
+
+    p95_ms = metrics["p95_ms"]
+    tps = metrics["tps"]
+    error_rate = metrics["error_rate_percent"]
+
+    # Build dynamic SLA summary
+
+    sla_results = []
+
+    if p95_status == "PASS":
+        sla_results.append(
+            f"P95 response time passed ({p95_ms} ms)."
+        )
+    else:
+        sla_results.append(
+            f"P95 response time failed ({p95_ms} ms)."
+        )
+
+    if tps_status == "PASS":
+        sla_results.append(
+            f"Throughput passed ({tps} TPS)."
+        )
+    else:
+        sla_results.append(
+            f"Throughput failed ({tps} TPS)."
+        )
+
+    if error_status == "PASS":
+        sla_results.append(
+            f"Error rate passed ({error_rate}%)."
+        )
+    else:
+        sla_results.append(
+            f"Error rate failed ({error_rate}%)."
+        )
+
+    sla_summary = " ".join(sla_results)
+
+    # Dynamic RCA focus
+
+    investigation_areas = []
+
+    if error_status == "FAIL":
+        investigation_areas.extend([
+            "HTTP response codes and failed transactions.",
+            "Application logs corresponding to failed requests.",
+            "Application CPU, memory and event-loop/thread utilization.",
+            "Application connection pools and concurrency limits.",
+            "Database errors, connection limits and slow queries.",
+            "APM traces for failed transactions."
+        ])
+
+    if p95_status == "FAIL":
+        investigation_areas.extend([
+            "Application response-time distribution.",
+            "Backend service latency.",
+            "Database query latency.",
+            "External dependency latency."
+        ])
+
+    if tps_status == "FAIL":
+        investigation_areas.extend([
+            "Load-generator capacity.",
+            "Application throughput limitations.",
+            "Connection-pool saturation.",
+            "Infrastructure resource limits."
+        ])
+
+    if not investigation_areas:
+        investigation_areas.append(
+            "Continue monitoring application, infrastructure and APM telemetry."
+        )
+
+    investigation_text = "\n".join(
+        f"{index}. {item}"
+        for index, item in enumerate(investigation_areas, 1)
+    )
+
+    # Dynamic engineering conclusion
+
+    if overall_status == "PASS":
+
+        conclusion = (
+            "All configured performance SLAs passed. "
+            "No SLA violation was identified in this test."
+        )
+
+    else:
+
+        conclusion = (
+            "The performance test failed one or more configured SLAs. "
+            "The available evidence identifies the failed SLA criteria, "
+            "but it does not by itself prove the underlying root cause. "
+            "Additional telemetry and correlation are required."
+        )
+
     report = f"""# AI Performance RCA Report
 
 ## 1. Executive Summary
 
-The performance test executed {summary["total_requests"]} requests.
+The performance test executed **{total_requests} requests**.
 
-Successful requests: {summary["successful_requests"]}
+Successful requests: **{successful_requests}**
 
-Failed requests: {summary["failed_requests"]}
+Failed requests: **{failed_requests}**
 
-Overall SLA status: **{sla["overall_status"]}**
+Overall SLA status: **{overall_status}**
 
-The P95 response-time SLA passed, while the throughput SLA failed.
+{sla_summary}
 
 ---
 
@@ -60,15 +175,17 @@ The P95 response-time SLA passed, while the throughput SLA failed.
 
 | Metric | Result |
 |---|---:|
-| Total Requests | {summary["total_requests"]} |
+| Total Requests | {total_requests} |
+| Successful Requests | {successful_requests} |
+| Failed Requests | {failed_requests} |
 | Test Duration | {summary["test_duration_seconds"]} sec |
 | Average Response Time | {metrics["average_response_time_ms"]} ms |
 | P90 | {metrics["p90_ms"]} ms |
 | P95 | {metrics["p95_ms"]} ms |
 | P99 | {metrics["p99_ms"]} ms |
 | Maximum Response Time | {metrics["max_response_time_ms"]} ms |
-| TPS | {metrics["tps"]} |
-| Error Rate | {metrics["error_rate_percent"]}% |
+| TPS | {tps} |
+| Error Rate | {error_rate}% |
 
 ---
 
@@ -78,65 +195,60 @@ The P95 response-time SLA passed, while the throughput SLA failed.
 
 Required: **{sla["required_p95_ms"]} ms**
 
-Actual: **{metrics["p95_ms"]} ms**
+Actual: **{p95_ms} ms**
 
-Status: **{sla["p95_status"]}**
+Status: **{p95_status}**
 
-The observed P95 response time is significantly below the configured SLA threshold.
+---
 
 ### Throughput
 
 Required: **{sla["required_tps"]} TPS**
 
-Actual: **{metrics["tps"]} TPS**
+Actual: **{tps} TPS**
 
-Status: **{sla["tps_status"]}**
+Status: **{tps_status}**
 
-The required throughput was not achieved.
+---
 
 ### Error Rate
 
 Required maximum: **{sla["required_error_rate_percent"]}%**
 
-Actual: **{metrics["error_rate_percent"]}%**
+Actual: **{error_rate}%**
 
-Status: **{sla["error_rate_status"]}**
-
-No application errors were observed in this test.
+Status: **{error_status}**
 
 ---
 
-## 4. Facts
+## 4. Performance Facts
 
-- P95 response time passed.
-- Error rate passed.
-- Throughput failed.
-- All {summary["total_requests"]} requests were successful.
-- The observed throughput was {metrics["tps"]} TPS.
-- The required throughput was {sla["required_tps"]} TPS.
+- Total requests: **{total_requests}**
+- Successful requests: **{successful_requests}**
+- Failed requests: **{failed_requests}**
+- P95 response time: **{p95_ms} ms**
+- Throughput: **{tps} TPS**
+- Error rate: **{error_rate}%**
+- Overall SLA status: **{overall_status}**
+
+These are observed test results and should be treated as performance facts.
 
 ---
 
-## 5. RCA Hypotheses
+## 5. RCA Assessment
 
 The current evidence is **not sufficient to declare a confirmed root cause**.
 
-Possible areas requiring investigation include:
+The following areas require investigation:
 
-1. Load-generator capacity.
-2. Application CPU or thread saturation.
-3. Application connection-pool limitations.
-4. Database connection or query limitations.
-5. Network latency or throughput limitations.
-6. Application-level concurrency or throttling.
+{investigation_text}
 
-These are hypotheses only and require additional telemetry.
+These are investigation areas and hypotheses only. 
+They should be validated using application, infrastructure, database and APM telemetry.
 
 ---
 
 ## 6. Required Evidence
-
-To determine the actual bottleneck, collect:
 
 ### Application
 
@@ -145,6 +257,8 @@ To determine the actual bottleneck, collect:
 - JVM/Node.js process metrics
 - Thread or event-loop utilization
 - Connection-pool usage
+- Application logs
+- HTTP response codes
 
 ### Database
 
@@ -153,6 +267,7 @@ To determine the actual bottleneck, collect:
 - Query response time
 - Slow queries
 - Lock/wait statistics
+- Database errors
 
 ### Infrastructure
 
@@ -169,33 +284,31 @@ To determine the actual bottleneck, collect:
 - Database call duration
 - External service latency
 - Distributed traces
+- Failed transaction traces
 
 ---
 
 ## 7. Recommended Next Actions
 
-1. Increase the workload gradually toward the required 100 TPS.
-2. Monitor the load generator during the test.
-3. Capture application and infrastructure metrics.
-4. Capture APM transaction traces.
-5. Capture database performance metrics.
-6. Correlate response time, throughput and resource utilization.
-7. Identify the component that limits throughput.
-8. Apply remediation.
-9. Re-run the performance test.
-10. Validate the SLA again.
+1. Identify the failed transactions from the JMeter JTL.
+2. Group failures by sampler and response code.
+3. Correlate failed requests with application logs.
+4. Capture application and infrastructure metrics.
+5. Capture APM transaction traces.
+6. Capture database performance metrics.
+7. Correlate errors with resource utilization and backend dependencies.
+8. Identify the confirmed bottleneck or failure cause.
+9. Apply remediation.
+10. Re-run the performance test.
+11. Validate the SLA again.
 
 ---
 
 ## 8. Engineering Conclusion
 
-The test **passed response-time and error-rate requirements but failed the throughput requirement**.
+{conclusion}
 
-The current evidence does not prove a specific bottleneck.
-
-Additional telemetry and correlation are required before declaring the root cause.
-
-The next performance-engineering step is therefore:
+The next performance-engineering step is:
 
 **Measure → Correlate → Identify Bottleneck → Remediate → Retest → Validate**
 """
