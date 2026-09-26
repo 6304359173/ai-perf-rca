@@ -545,30 +545,25 @@ pipeline {
                     echo.
                     echo ===== RUN MCP CLIENT =====
 
-                    set KUBECONFIG=%USERPROFILE%\.kube\config
+                   	"%PYTHON_EXE%" "%MCP_CLIENT%"
 
-					echo ===== MCP KUBECONFIG =====
-					echo %KUBECONFIG%
+					if errorlevel 1 (
+						echo ERROR: MCP client failed
+						exit /b 1
+					)
 
-					"%PYTHON_EXE%" "%MCP_CLIENT%"
+					echo.
+					echo ===== VERIFY MCP EVIDENCE =====
 
-                    if errorlevel 1 (
-                        echo ERROR: MCP client failed
-                        exit /b 1
-                    )
+					if not exist "%MCP_EVIDENCE%" (
+						echo ERROR: MCP evidence file was not created
+						exit /b 1
+					)
 
-                    echo.
-                    echo ===== VERIFY MCP EVIDENCE =====
+					echo.
+					echo ===== MCP EVIDENCE =====
 
-                    if not exist "%MCP_EVIDENCE%" (
-                        echo ERROR: MCP evidence file was not created
-                        exit /b 1
-                    )
-
-                    echo.
-                    echo ===== MCP EVIDENCE =====
-
-                    type "%MCP_EVIDENCE%"
+					type "%MCP_EVIDENCE%"
                 '''
             }
         }
