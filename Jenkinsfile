@@ -139,7 +139,7 @@ pipeline {
                     echo WAIT FOR APPLICATION
                     echo ========================================
 
-                    powershell -NoProfile -Command "$ok=$false; for($i=0;$i -lt 30;$i++){ try { $r=Invoke-WebRequest -Uri 'http://127.0.0.1:3003/health' -UseBasicParsing -TimeoutSec 2; if($r.StatusCode -eq 200){$ok=$true; break} } catch {}; Start-Sleep -Seconds 1 }; if(-not $ok){ Write-Host '========================================'; Write-Host 'PORT-FORWARD FAILED'; Write-Host '========================================'; Write-Host 'STDOUT:'; if(Test-Path 'k8s-port-forward.out.log'){Get-Content 'k8s-port-forward.out.log'}; Write-Host 'STDERR:'; if(Test-Path 'k8s-port-forward.err.log'){Get-Content 'k8s-port-forward.err.log'}; exit 1 }"
+                    powershell -NoProfile -Command "$ok=$false; for($i=0;$i -lt 30;$i++){ try { $r=curl.exe -s -o NUL -w '%{http_code}' http://127.0.0.1:3003/health; if($r -eq '200'){$ok=$true; break} } catch {}; Start-Sleep -Seconds 1 }; if(-not $ok){ Write-Host '========================================'; Write-Host 'PORT-FORWARD FAILED'; Write-Host '========================================'; Write-Host 'STDOUT:'; if(Test-Path 'k8s-port-forward.out.log'){Get-Content 'k8s-port-forward.out.log'}; Write-Host 'STDERR:'; if(Test-Path 'k8s-port-forward.err.log'){Get-Content 'k8s-port-forward.err.log'}; exit 1 }"
 
                     echo ========================================
                     echo PORT FORWARD READY
