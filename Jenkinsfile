@@ -312,7 +312,7 @@ pipeline {
 				echo ===== MCP EVIDENCE =====
 				type ai-engine\\mcp_rca_evidence.json
 				'''
-                    "%PYTHON_EXE%" mcp-server\\mcp_client.py
+                    "%PYTHON_EXE%" mcp-server\mcp_client.py
 
                     if %ERRORLEVEL% NEQ 0 (
                         echo ERROR: MCP evidence collection failed.
