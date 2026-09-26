@@ -545,7 +545,12 @@ pipeline {
                     echo.
                     echo ===== RUN MCP CLIENT =====
 
-                    "%PYTHON_EXE%" "%MCP_CLIENT%"
+                    set KUBECONFIG=%USERPROFILE%\.kube\config
+
+					echo ===== MCP KUBECONFIG =====
+					echo %KUBECONFIG%
+
+					"%PYTHON_EXE%" "%MCP_CLIENT%"
 
                     if errorlevel 1 (
                         echo ERROR: MCP client failed
