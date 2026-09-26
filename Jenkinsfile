@@ -281,6 +281,37 @@ pipeline {
                 echo 'Collecting performance and Kubernetes evidence through MCP...'
 
                 bat '''
+				bat '''
+				echo ===== MCP ENVIRONMENT =====
+				echo Python:
+				"%PYTHON_EXE%" --version
+
+				echo Kubectl:
+				where kubectl
+
+				echo Kubectl version:
+				kubectl version --client
+
+				echo Kubernetes context:
+				kubectl config current-context
+
+				echo Kubernetes nodes:
+				kubectl top nodes
+
+				echo Kubernetes pods:
+				kubectl top pods
+
+				echo ===== RUN MCP CLIENT =====
+				"%PYTHON_EXE%" mcp-server\\mcp_client.py
+
+				if not exist ai-engine\\mcp_rca_evidence.json (
+					echo ERROR: MCP evidence file was not generated.
+					exit /b 1
+				)
+
+				echo ===== MCP EVIDENCE =====
+				type ai-engine\\mcp_rca_evidence.json
+			'''
                     "%PYTHON_EXE%" mcp-server\\mcp_client.py
 
                     if %ERRORLEVEL% NEQ 0 (
