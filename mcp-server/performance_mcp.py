@@ -225,34 +225,35 @@ def get_kubernetes_metrics() -> dict:
     """
 
     try:
+        env = os.environ.copy()
 
         node_result = subprocess.run(
             ["kubectl", "top", "nodes"],
             capture_output=True,
             text=True,
-            check=True
+            env=env
         )
 
         pod_result = subprocess.run(
             ["kubectl", "top", "pods"],
             capture_output=True,
             text=True,
-            check=True
+            env=env
         )
 
         return {
-            "status": "SUCCESS",
+            "status": "SUCCESS" if node_result.returncode == 0 and pod_result.returncode == 0 else "ERROR",
             "source": "Kubernetes Metrics Server",
-            "nodes": node_result.stdout.strip(),
-            "pods": pod_result.stdout.strip()
-        }
-
-    except subprocess.CalledProcessError as error:
-
-        return {
-            "status": "ERROR",
-            "message": "Unable to retrieve Kubernetes metrics.",
-            "details": error.stderr.strip()
+            "environment": {
+                "KUBECONFIG": env.get("KUBECONFIG"),
+                "PATH": env.get("PATH")
+            },
+            "node_return_code": node_result.returncode,
+            "node_stdout": node_result.stdout.strip(),
+            "node_stderr": node_result.stderr.strip(),
+            "pod_return_code": pod_result.returncode,
+            "pod_stdout": pod_result.stdout.strip(),
+            "pod_stderr": pod_result.stderr.strip()
         }
 
     except Exception as error:
