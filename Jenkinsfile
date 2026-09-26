@@ -1,11 +1,6 @@
 pipeline {
     agent any
 
-    /*
-     * Jenkins runs as Local System on this machine.
-     * Explicitly point kubectl to the Docker Desktop
-     * Kubernetes configuration used by the Windows user.
-     */
     environment {
         KUBECONFIG = 'C:\\Users\\LENOVO\\.kube\\config'
         PYTHON_EXE = 'C:\\Users\\LENOVO\\AppData\\Local\\Programs\\Python\\Python314\\python.exe'
@@ -33,11 +28,6 @@ pipeline {
 
     stages {
 
-        /*
-         * ============================================================
-         * ENVIRONMENT CHECK
-         * ============================================================
-         */
         stage('Environment Check') {
             steps {
                 echo 'Checking performance testing environment...'
@@ -89,11 +79,6 @@ pipeline {
         }
 
 
-        /*
-         * ============================================================
-         * START KUBERNETES PORT FORWARD
-         * ============================================================
-         */
         stage('Start Kubernetes Port Forward') {
             steps {
                 echo 'Starting Kubernetes port-forward...'
@@ -126,24 +111,35 @@ pipeline {
                     if exist k8s-port-forward.pid del /q k8s-port-forward.pid
 
                     echo ========================================
-                    echo CLEAN OLD LOG FILE
+                    echo CLEAN OLD LOG FILES
                     echo ========================================
 
-                    if exist k8s-port-forward.log del /q k8s-port-forward.log
+                    if exist k8s-port-forward.out.log del /q k8s-port-forward.out.log
+
+                    if exist k8s-port-forward.err.log del /q k8s-port-forward.err.log
 
                     echo ========================================
                     echo START KUBECTL PORT FORWARD
                     echo ========================================
 
-                    powershell -NoProfile -Command "$env:KUBECONFIG='C:\\Users\\LENOVO\\.kube\\config'; $p=Start-Process kubectl -ArgumentList '--kubeconfig','C:\\Users\\LENOVO\\.kube\\config','port-forward','service/ai-perf-order-service','3003:3002' -RedirectStandardOutput 'k8s-port-forward.log' -RedirectStandardError 'k8s-port-forward.log' -PassThru -WindowStyle Hidden; $p.Id | Set-Content 'k8s-port-forward.pid'"
+                    powershell -NoProfile -Command "$env:KUBECONFIG='C:\\Users\\LENOVO\\.kube\\config'; $p=Start-Process kubectl -ArgumentList '--kubeconfig','C:\\Users\\LENOVO\\.kube\\config','port-forward','service/ai-perf-order-service','3003:3002' -RedirectStandardOutput 'k8s-port-forward.out.log' -RedirectStandardError 'k8s-port-forward.err.log' -PassThru -WindowStyle Hidden; if($null -eq $p){Write-Host 'ERROR: kubectl process was not started'; exit 1}; $p.Id | Set-Content 'k8s-port-forward.pid'; Write-Host ('kubectl PID: ' + $p.Id)"
 
-                    echo Port-forward process started.
+                    if not exist k8s-port-forward.pid (
+                        echo ERROR: Port-forward PID file was not created.
+                        exit /b 1
+                    )
+
+                    echo ========================================
+                    echo PORT FORWARD PROCESS
+                    echo ========================================
+
+                    type k8s-port-forward.pid
 
                     echo ========================================
                     echo WAIT FOR APPLICATION
                     echo ========================================
 
-                    powershell -NoProfile -Command "$ok=$false; for($i=0;$i -lt 30;$i++){ try { $r=Invoke-WebRequest -Uri 'http://127.0.0.1:3003/health' -UseBasicParsing -TimeoutSec 2; if($r.StatusCode -eq 200){$ok=$true; break} } catch {}; Start-Sleep -Seconds 1 }; if(-not $ok){ Write-Host '========================================'; Write-Host 'PORT-FORWARD FAILED'; Write-Host '========================================'; if(Test-Path 'k8s-port-forward.log'){Get-Content 'k8s-port-forward.log'}; exit 1 }"
+                    powershell -NoProfile -Command "$ok=$false; for($i=0;$i -lt 30;$i++){ try { $r=Invoke-WebRequest -Uri 'http://127.0.0.1:3003/health' -UseBasicParsing -TimeoutSec 2; if($r.StatusCode -eq 200){$ok=$true; break} } catch {}; Start-Sleep -Seconds 1 }; if(-not $ok){ Write-Host '========================================'; Write-Host 'PORT-FORWARD FAILED'; Write-Host '========================================'; Write-Host 'STDOUT:'; if(Test-Path 'k8s-port-forward.out.log'){Get-Content 'k8s-port-forward.out.log'}; Write-Host 'STDERR:'; if(Test-Path 'k8s-port-forward.err.log'){Get-Content 'k8s-port-forward.err.log'}; exit 1 }"
 
                     echo ========================================
                     echo PORT FORWARD READY
@@ -157,11 +153,6 @@ pipeline {
         }
 
 
-        /*
-         * ============================================================
-         * VALIDATE KUBERNETES APPLICATION
-         * ============================================================
-         */
         stage('Validate Kubernetes Application') {
             steps {
                 echo 'Checking Kubernetes Order Service...'
@@ -205,11 +196,6 @@ pipeline {
         }
 
 
-        /*
-         * ============================================================
-         * KUBERNETES METRICS
-         * ============================================================
-         */
         stage('Check Kubernetes Metrics') {
             steps {
                 echo 'Checking Kubernetes Metrics Server...'
@@ -231,11 +217,6 @@ pipeline {
         }
 
 
-        /*
-         * ============================================================
-         * JMETER PERFORMANCE TEST
-         * ============================================================
-         */
         stage('Run JMeter Test') {
             steps {
                 echo 'Running JMeter performance test against Kubernetes application...'
@@ -273,11 +254,6 @@ pipeline {
         }
 
 
-        /*
-         * ============================================================
-         * PYTHON PERFORMANCE ANALYSIS
-         * ============================================================
-         */
         stage('Analyze Performance') {
             steps {
                 echo 'Analyzing JMeter results with Python...'
@@ -300,11 +276,6 @@ pipeline {
         }
 
 
-        /*
-         * ============================================================
-         * MCP EVIDENCE
-         * ============================================================
-         */
         stage('Collect MCP Evidence') {
             steps {
                 echo 'Collecting performance and Kubernetes evidence through MCP...'
@@ -327,11 +298,6 @@ pipeline {
         }
 
 
-        /*
-         * ============================================================
-         * AI RCA PROMPT
-         * ============================================================
-         */
         stage('Generate AI RCA Prompt') {
             steps {
                 echo 'Generating MCP-based AI RCA prompt...'
@@ -351,18 +317,13 @@ pipeline {
                     if exist ai-engine\\ai_rca_prompt_from_mcp.txt (
                         type ai-engine\\ai_rca_prompt_from_mcp.txt
                     ) else (
-                        echo AI RCA prompt file was not generated.
+                        echo AI RCA prompt was not generated.
                     )
                 '''
             }
         }
 
 
-        /*
-         * ============================================================
-         * DETERMINISTIC RCA REPORT
-         * ============================================================
-         */
         stage('Generate RCA Report') {
             steps {
                 echo 'Generating deterministic Performance RCA report...'
@@ -394,11 +355,6 @@ pipeline {
         }
 
 
-        /*
-         * ============================================================
-         * AI RCA
-         * ============================================================
-         */
         stage('Generate AI RCA') {
             steps {
                 echo 'Generating AI-based performance RCA...'
@@ -423,11 +379,6 @@ pipeline {
         }
 
 
-        /*
-         * ============================================================
-         * COLLECT REPORTS
-         * ============================================================
-         */
         stage('Collect Reports') {
             steps {
                 echo 'Collecting performance reports...'
@@ -482,11 +433,19 @@ pipeline {
                     )
 
                     echo ========================================
-                    echo COPY PORT FORWARD LOG
+                    echo COPY PORT FORWARD STDOUT
                     echo ========================================
 
-                    if exist k8s-port-forward.log (
-                        copy /Y k8s-port-forward.log "%WORKSPACE%\\results\\k8s-port-forward.log"
+                    if exist k8s-port-forward.out.log (
+                        copy /Y k8s-port-forward.out.log "%WORKSPACE%\\results\\k8s-port-forward.out.log"
+                    )
+
+                    echo ========================================
+                    echo COPY PORT FORWARD STDERR
+                    echo ========================================
+
+                    if exist k8s-port-forward.err.log (
+                        copy /Y k8s-port-forward.err.log "%WORKSPACE%\\results\\k8s-port-forward.err.log"
                     )
 
                     echo ========================================
@@ -500,11 +459,6 @@ pipeline {
     }
 
 
-    /*
-     * ================================================================
-     * POST ACTIONS
-     * ================================================================
-     */
     post {
 
         always {
