@@ -281,7 +281,7 @@ pipeline {
                 echo 'Collecting performance and Kubernetes evidence through MCP...'
 
                 bat '''
-				bat '''
+				
 				echo ===== MCP ENVIRONMENT =====
 				echo Python:
 				"%PYTHON_EXE%" --version
