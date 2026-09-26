@@ -3,7 +3,7 @@ pipeline {
 
     /*
      * Jenkins runs as Local System on this machine.
-     * Therefore explicitly point kubectl to the Docker Desktop
+     * Explicitly point kubectl to the Docker Desktop
      * Kubernetes configuration used by the Windows user.
      */
     environment {
@@ -33,10 +33,11 @@ pipeline {
 
     stages {
 
-        // ============================================================
-        // 1. Environment Check
-        // ============================================================
-
+        /*
+         * ============================================================
+         * ENVIRONMENT CHECK
+         * ============================================================
+         */
         stage('Environment Check') {
             steps {
                 echo 'Checking performance testing environment...'
@@ -73,10 +74,14 @@ pipeline {
                     echo ========================================
                     echo KUBECONFIG=%KUBECONFIG%
                     kubectl version --client
+
+                    echo ========================================
+                    echo KUBERNETES CONTEXT
+                    echo ========================================
                     kubectl config current-context
 
                     echo ========================================
-                    echo KUBERNETES CLUSTER
+                    echo KUBERNETES NODES
                     echo ========================================
                     kubectl get nodes
                 '''
@@ -84,55 +89,79 @@ pipeline {
         }
 
 
-        // ============================================================
-        // 2. Start Kubernetes Port Forward
-        // ============================================================
-
+        /*
+         * ============================================================
+         * START KUBERNETES PORT FORWARD
+         * ============================================================
+         */
         stage('Start Kubernetes Port Forward') {
             steps {
                 echo 'Starting Kubernetes port-forward...'
 
                 bat '''
                     echo ========================================
-                    echo CHECK PORT 3003
+                    echo KUBERNETES CONTEXT
                     echo ========================================
 
-                    netstat -ano | findstr :3003 > nul
+                    set KUBECONFIG=C:\\Users\\LENOVO\\.kube\\config
 
-                    if %ERRORLEVEL% EQU 0 (
-                        echo ERROR: Port 3003 is already in use.
-                        echo Please stop the existing process using port 3003.
-                        exit /b 1
-                    )
+                    kubectl config current-context
 
                     echo ========================================
-                    echo START PORT FORWARD
+                    echo CHECK APPLICATION PODS
                     echo ========================================
 
-                    powershell -NoProfile -Command "$p=Start-Process kubectl -ArgumentList 'port-forward','service/ai-perf-order-service','3003:3002' -PassThru -WindowStyle Hidden; $p.Id | Set-Content 'k8s-port-forward.pid'"
+                    kubectl get pods -l app=ai-perf-order-service
+
+                    echo ========================================
+                    echo CLEAN OLD PORT 3003
+                    echo ========================================
+
+                    powershell -NoProfile -Command "$c=Get-NetTCPConnection -LocalPort 3003 -State Listen -ErrorAction SilentlyContinue; if($c){$c | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object {Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue}; Start-Sleep -Seconds 2}"
+
+                    echo ========================================
+                    echo CLEAN OLD PID FILE
+                    echo ========================================
+
+                    if exist k8s-port-forward.pid del /q k8s-port-forward.pid
+
+                    echo ========================================
+                    echo CLEAN OLD LOG FILE
+                    echo ========================================
+
+                    if exist k8s-port-forward.log del /q k8s-port-forward.log
+
+                    echo ========================================
+                    echo START KUBECTL PORT FORWARD
+                    echo ========================================
+
+                    powershell -NoProfile -Command "$env:KUBECONFIG='C:\\Users\\LENOVO\\.kube\\config'; $p=Start-Process kubectl -ArgumentList '--kubeconfig','C:\\Users\\LENOVO\\.kube\\config','port-forward','service/ai-perf-order-service','3003:3002' -RedirectStandardOutput 'k8s-port-forward.log' -RedirectStandardError 'k8s-port-forward.log' -PassThru -WindowStyle Hidden; $p.Id | Set-Content 'k8s-port-forward.pid'"
 
                     echo Port-forward process started.
 
                     echo ========================================
-                    echo WAIT FOR PORT 3003
+                    echo WAIT FOR APPLICATION
                     echo ========================================
 
-                    powershell -NoProfile -Command "$ok=$false; for($i=0;$i -lt 30;$i++){ try { $r=Invoke-WebRequest -Uri 'http://localhost:3003/health' -UseBasicParsing -TimeoutSec 2; if($r.StatusCode -eq 200){$ok=$true; break} } catch {}; Start-Sleep -Seconds 1 }; if(-not $ok){ Write-Host 'Port-forward health check failed'; exit 1 }"
+                    powershell -NoProfile -Command "$ok=$false; for($i=0;$i -lt 30;$i++){ try { $r=Invoke-WebRequest -Uri 'http://127.0.0.1:3003/health' -UseBasicParsing -TimeoutSec 2; if($r.StatusCode -eq 200){$ok=$true; break} } catch {}; Start-Sleep -Seconds 1 }; if(-not $ok){ Write-Host '========================================'; Write-Host 'PORT-FORWARD FAILED'; Write-Host '========================================'; if(Test-Path 'k8s-port-forward.log'){Get-Content 'k8s-port-forward.log'}; exit 1 }"
 
                     echo ========================================
                     echo PORT FORWARD READY
                     echo ========================================
 
-                    type k8s-port-forward.pid
+                    curl -s http://127.0.0.1:3003/health
+
+                    echo.
                 '''
             }
         }
 
 
-        // ============================================================
-        // 3. Validate Kubernetes Application
-        // ============================================================
-
+        /*
+         * ============================================================
+         * VALIDATE KUBERNETES APPLICATION
+         * ============================================================
+         */
         stage('Validate Kubernetes Application') {
             steps {
                 echo 'Checking Kubernetes Order Service...'
@@ -141,38 +170,46 @@ pipeline {
                     echo ========================================
                     echo PODS
                     echo ========================================
+
                     kubectl get pods -l app=ai-perf-order-service
 
                     echo ========================================
                     echo SERVICE
                     echo ========================================
+
                     kubectl get service ai-perf-order-service
 
                     echo ========================================
                     echo ENDPOINTS
                     echo ========================================
+
                     kubectl get endpoints ai-perf-order-service
 
                     echo ========================================
                     echo HEALTH CHECK
                     echo ========================================
-                    curl -s http://localhost:3003/health
+
+                    curl -s http://127.0.0.1:3003/health
+
                     echo.
 
                     echo ========================================
                     echo PRODUCTS CHECK
                     echo ========================================
-                    curl -s http://localhost:3003/products
+
+                    curl -s http://127.0.0.1:3003/products
+
                     echo.
                 '''
             }
         }
 
 
-        // ============================================================
-        // 4. Kubernetes Metrics
-        // ============================================================
-
+        /*
+         * ============================================================
+         * KUBERNETES METRICS
+         * ============================================================
+         */
         stage('Check Kubernetes Metrics') {
             steps {
                 echo 'Checking Kubernetes Metrics Server...'
@@ -181,21 +218,24 @@ pipeline {
                     echo ========================================
                     echo NODE METRICS
                     echo ========================================
+
                     kubectl top nodes
 
                     echo ========================================
                     echo POD METRICS
                     echo ========================================
+
                     kubectl top pods
                 '''
             }
         }
 
 
-        // ============================================================
-        // 5. Run JMeter Performance Test
-        // ============================================================
-
+        /*
+         * ============================================================
+         * JMETER PERFORMANCE TEST
+         * ============================================================
+         */
         stage('Run JMeter Test') {
             steps {
                 echo 'Running JMeter performance test against Kubernetes application...'
@@ -208,7 +248,7 @@ pipeline {
                     if exist scripts\\results.jtl del /q scripts\\results.jtl
 
                     echo ========================================
-                    echo JMeter TEST
+                    echo JMETER TEST
                     echo ========================================
 
                     jmeter -n ^
@@ -224,7 +264,7 @@ pipeline {
                     )
 
                     echo ========================================
-                    echo JMeter RESULT
+                    echo JMETER RESULT
                     echo ========================================
 
                     dir scripts\\results.jtl
@@ -233,10 +273,11 @@ pipeline {
         }
 
 
-        // ============================================================
-        // 6. Analyze Performance
-        // ============================================================
-
+        /*
+         * ============================================================
+         * PYTHON PERFORMANCE ANALYSIS
+         * ============================================================
+         */
         stage('Analyze Performance') {
             steps {
                 echo 'Analyzing JMeter results with Python...'
@@ -259,10 +300,11 @@ pipeline {
         }
 
 
-        // ============================================================
-        // 7. Collect MCP Evidence
-        // ============================================================
-
+        /*
+         * ============================================================
+         * MCP EVIDENCE
+         * ============================================================
+         */
         stage('Collect MCP Evidence') {
             steps {
                 echo 'Collecting performance and Kubernetes evidence through MCP...'
@@ -285,10 +327,11 @@ pipeline {
         }
 
 
-        // ============================================================
-        // 8. Generate MCP-based AI RCA Prompt
-        // ============================================================
-
+        /*
+         * ============================================================
+         * AI RCA PROMPT
+         * ============================================================
+         */
         stage('Generate AI RCA Prompt') {
             steps {
                 echo 'Generating MCP-based AI RCA prompt...'
@@ -315,10 +358,11 @@ pipeline {
         }
 
 
-        // ============================================================
-        // 9. Generate Deterministic RCA Report
-        // ============================================================
-
+        /*
+         * ============================================================
+         * DETERMINISTIC RCA REPORT
+         * ============================================================
+         */
         stage('Generate RCA Report') {
             steps {
                 echo 'Generating deterministic Performance RCA report...'
@@ -350,10 +394,11 @@ pipeline {
         }
 
 
-        // ============================================================
-        // 10. Generate AI RCA
-        // ============================================================
-
+        /*
+         * ============================================================
+         * AI RCA
+         * ============================================================
+         */
         stage('Generate AI RCA') {
             steps {
                 echo 'Generating AI-based performance RCA...'
@@ -378,10 +423,11 @@ pipeline {
         }
 
 
-        // ============================================================
-        // 11. Collect Reports
-        // ============================================================
-
+        /*
+         * ============================================================
+         * COLLECT REPORTS
+         * ============================================================
+         */
         stage('Collect Reports') {
             steps {
                 echo 'Collecting performance reports...'
@@ -394,7 +440,7 @@ pipeline {
                     if not exist "%WORKSPACE%\\results" mkdir "%WORKSPACE%\\results"
 
                     echo ========================================
-                    echo COPY JMeter RESULTS
+                    echo COPY JMETER RESULTS
                     echo ========================================
 
                     copy /Y scripts\\results.jtl "%WORKSPACE%\\results\\results.jtl"
@@ -436,6 +482,14 @@ pipeline {
                     )
 
                     echo ========================================
+                    echo COPY PORT FORWARD LOG
+                    echo ========================================
+
+                    if exist k8s-port-forward.log (
+                        copy /Y k8s-port-forward.log "%WORKSPACE%\\results\\k8s-port-forward.log"
+                    )
+
+                    echo ========================================
                     echo JENKINS ARTIFACTS
                     echo ========================================
 
@@ -446,10 +500,11 @@ pipeline {
     }
 
 
-    // ================================================================
-    // POST ACTIONS
-    // ================================================================
-
+    /*
+     * ================================================================
+     * POST ACTIONS
+     * ================================================================
+     */
     post {
 
         always {
@@ -457,6 +512,10 @@ pipeline {
             echo 'Stopping Kubernetes port-forward...'
 
             bat '''
+                echo ========================================
+                echo STOP KUBERNETES PORT FORWARD
+                echo ========================================
+
                 if exist k8s-port-forward.pid (
                     for /f %%P in (k8s-port-forward.pid) do (
                         taskkill /PID %%P /T /F > nul 2>&1
@@ -464,6 +523,12 @@ pipeline {
 
                     del /q k8s-port-forward.pid
                 )
+
+                echo ========================================
+                echo VERIFY PORT 3003
+                echo ========================================
+
+                powershell -NoProfile -Command "$c=Get-NetTCPConnection -LocalPort 3003 -State Listen -ErrorAction SilentlyContinue; if($c){$c | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object {Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue}}"
 
                 echo Kubernetes port-forward cleanup completed.
             '''
