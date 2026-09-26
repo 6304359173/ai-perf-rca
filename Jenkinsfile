@@ -1,6 +1,16 @@
 pipeline {
     agent any
 
+    /*
+     * Jenkins runs as Local System on this machine.
+     * Therefore explicitly point kubectl to the Docker Desktop
+     * Kubernetes configuration used by the Windows user.
+     */
+    environment {
+        KUBECONFIG = 'C:\\Users\\LENOVO\\.kube\\config'
+        PYTHON_EXE = 'C:\\Users\\LENOVO\\AppData\\Local\\Programs\\Python\\Python314\\python.exe'
+    }
+
     parameters {
         string(
             name: 'TEST_USERS',
@@ -32,24 +42,43 @@ pipeline {
                 echo 'Checking performance testing environment...'
 
                 bat '''
-                    echo ===== JAVA =====
+                    echo ========================================
+                    echo JAVA
+                    echo ========================================
                     java -version
 
-                    echo ===== GIT =====
+                    echo ========================================
+                    echo GIT
+                    echo ========================================
                     git --version
 
-                    echo ===== PYTHON =====
-                    "C:\\Users\\LENOVO\\AppData\\Local\\Programs\\Python\\Python314\\python.exe" --version
+                    echo ========================================
+                    echo PYTHON
+                    echo ========================================
+                    "%PYTHON_EXE%" --version
 
-                    echo ===== JMETER =====
+                    echo ========================================
+                    echo JMETER
+                    echo ========================================
                     where jmeter
+                    jmeter --version
 
-                    echo ===== DOCKER =====
+                    echo ========================================
+                    echo DOCKER
+                    echo ========================================
                     docker --version
 
-                    echo ===== KUBERNETES =====
+                    echo ========================================
+                    echo KUBERNETES
+                    echo ========================================
+                    echo KUBECONFIG=%KUBECONFIG%
                     kubectl version --client
                     kubectl config current-context
+
+                    echo ========================================
+                    echo KUBERNETES CLUSTER
+                    echo ========================================
+                    kubectl get nodes
                 '''
             }
         }
@@ -64,7 +93,9 @@ pipeline {
                 echo 'Starting Kubernetes port-forward...'
 
                 bat '''
-                    echo ===== CHECK PORT 3003 =====
+                    echo ========================================
+                    echo CHECK PORT 3003
+                    echo ========================================
 
                     netstat -ano | findstr :3003 > nul
 
@@ -74,17 +105,23 @@ pipeline {
                         exit /b 1
                     )
 
-                    echo ===== START PORT FORWARD =====
+                    echo ========================================
+                    echo START PORT FORWARD
+                    echo ========================================
 
                     powershell -NoProfile -Command "$p=Start-Process kubectl -ArgumentList 'port-forward','service/ai-perf-order-service','3003:3002' -PassThru -WindowStyle Hidden; $p.Id | Set-Content 'k8s-port-forward.pid'"
 
                     echo Port-forward process started.
 
-                    echo ===== WAIT FOR PORT 3003 =====
+                    echo ========================================
+                    echo WAIT FOR PORT 3003
+                    echo ========================================
 
                     powershell -NoProfile -Command "$ok=$false; for($i=0;$i -lt 30;$i++){ try { $r=Invoke-WebRequest -Uri 'http://localhost:3003/health' -UseBasicParsing -TimeoutSec 2; if($r.StatusCode -eq 200){$ok=$true; break} } catch {}; Start-Sleep -Seconds 1 }; if(-not $ok){ Write-Host 'Port-forward health check failed'; exit 1 }"
 
-                    echo ===== PORT FORWARD READY =====
+                    echo ========================================
+                    echo PORT FORWARD READY
+                    echo ========================================
 
                     type k8s-port-forward.pid
                 '''
@@ -101,23 +138,31 @@ pipeline {
                 echo 'Checking Kubernetes Order Service...'
 
                 bat '''
-                    echo ===== PODS =====
+                    echo ========================================
+                    echo PODS
+                    echo ========================================
                     kubectl get pods -l app=ai-perf-order-service
 
-                    echo ===== SERVICE =====
+                    echo ========================================
+                    echo SERVICE
+                    echo ========================================
                     kubectl get service ai-perf-order-service
 
-                    echo ===== ENDPOINTS =====
+                    echo ========================================
+                    echo ENDPOINTS
+                    echo ========================================
                     kubectl get endpoints ai-perf-order-service
 
-                    echo ===== HEALTH CHECK =====
+                    echo ========================================
+                    echo HEALTH CHECK
+                    echo ========================================
                     curl -s http://localhost:3003/health
-
                     echo.
 
-                    echo ===== PRODUCTS CHECK =====
+                    echo ========================================
+                    echo PRODUCTS CHECK
+                    echo ========================================
                     curl -s http://localhost:3003/products
-
                     echo.
                 '''
             }
@@ -125,7 +170,7 @@ pipeline {
 
 
         // ============================================================
-        // 4. Kubernetes Metrics Check
+        // 4. Kubernetes Metrics
         // ============================================================
 
         stage('Check Kubernetes Metrics') {
@@ -133,10 +178,14 @@ pipeline {
                 echo 'Checking Kubernetes Metrics Server...'
 
                 bat '''
-                    echo ===== NODE METRICS =====
+                    echo ========================================
+                    echo NODE METRICS
+                    echo ========================================
                     kubectl top nodes
 
-                    echo ===== POD METRICS =====
+                    echo ========================================
+                    echo POD METRICS
+                    echo ========================================
                     kubectl top pods
                 '''
             }
@@ -144,7 +193,7 @@ pipeline {
 
 
         // ============================================================
-        // 5. Run JMeter Test
+        // 5. Run JMeter Performance Test
         // ============================================================
 
         stage('Run JMeter Test') {
@@ -152,16 +201,32 @@ pipeline {
                 echo 'Running JMeter performance test against Kubernetes application...'
 
                 bat '''
+                    echo ========================================
+                    echo CLEAN PREVIOUS RESULT
+                    echo ========================================
+
                     if exist scripts\\results.jtl del /q scripts\\results.jtl
+
+                    echo ========================================
+                    echo JMeter TEST
+                    echo ========================================
 
                     jmeter -n ^
                       -JTEST_USERS=%TEST_USERS% ^
                       -JRAMP_UP=%RAMP_UP% ^
                       -JDURATION=%DURATION% ^
-                      -t scripts/ai_perf_test.jmx ^
-                      -l scripts/results.jtl
+                      -t scripts\\ai_perf_test.jmx ^
+                      -l scripts\\results.jtl
 
-                    echo ===== JMeter Result =====
+                    if %ERRORLEVEL% NEQ 0 (
+                        echo ERROR: JMeter execution failed.
+                        exit /b 1
+                    )
+
+                    echo ========================================
+                    echo JMeter RESULT
+                    echo ========================================
+
                     dir scripts\\results.jtl
                 '''
             }
@@ -177,9 +242,18 @@ pipeline {
                 echo 'Analyzing JMeter results with Python...'
 
                 bat '''
-                    cd python-engine
+                    "%PYTHON_EXE%" python-engine\\analyzer.py
 
-                    "C:\\Users\\LENOVO\\AppData\\Local\\Programs\\Python\\Python314\\python.exe" analyzer.py
+                    if %ERRORLEVEL% NEQ 0 (
+                        echo ERROR: Performance analyzer failed.
+                        exit /b 1
+                    )
+
+                    echo ========================================
+                    echo PERFORMANCE METRICS
+                    echo ========================================
+
+                    type python-engine\\metrics.json
                 '''
             }
         }
@@ -194,9 +268,17 @@ pipeline {
                 echo 'Collecting performance and Kubernetes evidence through MCP...'
 
                 bat '''
-                    "C:\\Users\\LENOVO\\AppData\\Local\\Programs\\Python\\Python314\\python.exe" mcp-server\\mcp_client.py
+                    "%PYTHON_EXE%" mcp-server\\mcp_client.py
 
-                    echo ===== MCP Evidence =====
+                    if %ERRORLEVEL% NEQ 0 (
+                        echo ERROR: MCP evidence collection failed.
+                        exit /b 1
+                    )
+
+                    echo ========================================
+                    echo MCP EVIDENCE
+                    echo ========================================
+
                     type ai-engine\\mcp_rca_evidence.json
                 '''
             }
@@ -209,13 +291,25 @@ pipeline {
 
         stage('Generate AI RCA Prompt') {
             steps {
-                echo 'Generating AI RCA prompt from MCP evidence...'
+                echo 'Generating MCP-based AI RCA prompt...'
 
                 bat '''
-                    "C:\\Users\\LENOVO\\AppData\\Local\\Programs\\Python\\Python314\\python.exe" ai-engine\\llm_client.py
+                    "%PYTHON_EXE%" ai-engine\\llm_client.py
 
-                    echo ===== AI RCA PROMPT =====
-                    type ai-engine\\ai_rca_prompt_from_mcp.txt
+                    if %ERRORLEVEL% NEQ 0 (
+                        echo ERROR: AI RCA prompt generation failed.
+                        exit /b 1
+                    )
+
+                    echo ========================================
+                    echo AI RCA PROMPT
+                    echo ========================================
+
+                    if exist ai-engine\\ai_rca_prompt_from_mcp.txt (
+                        type ai-engine\\ai_rca_prompt_from_mcp.txt
+                    ) else (
+                        echo AI RCA prompt file was not generated.
+                    )
                 '''
             }
         }
@@ -227,21 +321,37 @@ pipeline {
 
         stage('Generate RCA Report') {
             steps {
-                echo 'Generating Performance RCA report...'
+                echo 'Generating deterministic Performance RCA report...'
 
                 bat '''
-                    cd python-engine
+                    "%PYTHON_EXE%" python-engine\\rca_engine.py
 
-                    "C:\\Users\\LENOVO\\AppData\\Local\\Programs\\Python\\Python314\\python.exe" rca_engine.py
+                    if %ERRORLEVEL% NEQ 0 (
+                        echo ERROR: RCA engine failed.
+                        exit /b 1
+                    )
 
-                    "C:\\Users\\LENOVO\\AppData\\Local\\Programs\\Python\\Python314\\python.exe" generate_report.py
+                    "%PYTHON_EXE%" python-engine\\generate_report.py
+
+                    if %ERRORLEVEL% NEQ 0 (
+                        echo ERROR: Report generation failed.
+                        exit /b 1
+                    )
+
+                    echo ========================================
+                    echo RCA REPORT
+                    echo ========================================
+
+                    if exist reports\\ai_rca_report.md (
+                        type reports\\ai_rca_report.md
+                    )
                 '''
             }
         }
 
 
         // ============================================================
-        // 10. Generate Mock AI RCA
+        // 10. Generate AI RCA
         // ============================================================
 
         stage('Generate AI RCA') {
@@ -249,10 +359,20 @@ pipeline {
                 echo 'Generating AI-based performance RCA...'
 
                 bat '''
-                    "C:\\Users\\LENOVO\\AppData\\Local\\Programs\\Python\\Python314\\python.exe" ai-engine\\mock_ai_rca.py
+                    "%PYTHON_EXE%" ai-engine\\mock_ai_rca.py
 
-                    echo ===== AI RCA REPORT =====
-                    type ai-engine\\ai_rca_report.md
+                    if %ERRORLEVEL% NEQ 0 (
+                        echo ERROR: AI RCA generation failed.
+                        exit /b 1
+                    )
+
+                    echo ========================================
+                    echo AI RCA REPORT
+                    echo ========================================
+
+                    if exist ai-engine\\ai_rca_report.md (
+                        type ai-engine\\ai_rca_report.md
+                    )
                 '''
             }
         }
@@ -267,21 +387,58 @@ pipeline {
                 echo 'Collecting performance reports...'
 
                 bat '''
+                    echo ========================================
+                    echo CREATE RESULTS DIRECTORY
+                    echo ========================================
+
                     if not exist "%WORKSPACE%\\results" mkdir "%WORKSPACE%\\results"
+
+                    echo ========================================
+                    echo COPY JMeter RESULTS
+                    echo ========================================
 
                     copy /Y scripts\\results.jtl "%WORKSPACE%\\results\\results.jtl"
 
+                    echo ========================================
+                    echo COPY PERFORMANCE METRICS
+                    echo ========================================
+
                     copy /Y python-engine\\metrics.json "%WORKSPACE%\\results\\metrics.json"
+
+                    echo ========================================
+                    echo COPY MCP EVIDENCE
+                    echo ========================================
 
                     copy /Y ai-engine\\mcp_rca_evidence.json "%WORKSPACE%\\results\\mcp_rca_evidence.json"
 
-                    copy /Y ai-engine\\ai_rca_prompt_from_mcp.txt "%WORKSPACE%\\results\\ai_rca_prompt_from_mcp.txt"
+                    echo ========================================
+                    echo COPY AI RCA PROMPT
+                    echo ========================================
 
-                    copy /Y ai-engine\\rca_prompt.txt "%WORKSPACE%\\results\\rca_prompt.txt"
+                    if exist ai-engine\\ai_rca_prompt_from_mcp.txt (
+                        copy /Y ai-engine\\ai_rca_prompt_from_mcp.txt "%WORKSPACE%\\results\\ai_rca_prompt_from_mcp.txt"
+                    )
 
-                    copy /Y reports\\ai_rca_report.md "%WORKSPACE%\\results\\ai_rca_report.md"
+                    echo ========================================
+                    echo COPY RCA PROMPT
+                    echo ========================================
 
-                    echo ===== Jenkins Artifacts =====
+                    if exist ai-engine\\rca_prompt.txt (
+                        copy /Y ai-engine\\rca_prompt.txt "%WORKSPACE%\\results\\rca_prompt.txt"
+                    )
+
+                    echo ========================================
+                    echo COPY RCA REPORT
+                    echo ========================================
+
+                    if exist reports\\ai_rca_report.md (
+                        copy /Y reports\\ai_rca_report.md "%WORKSPACE%\\results\\ai_rca_report.md"
+                    )
+
+                    echo ========================================
+                    echo JENKINS ARTIFACTS
+                    echo ========================================
+
                     dir "%WORKSPACE%\\results"
                 '''
             }
@@ -290,7 +447,7 @@ pipeline {
 
 
     // ================================================================
-    // Post Actions
+    // POST ACTIONS
     // ================================================================
 
     post {
@@ -313,8 +470,10 @@ pipeline {
 
             echo 'Performance pipeline completed.'
 
-            archiveArtifacts artifacts: 'results/*',
-                allowEmptyArchive: false
+            archiveArtifacts(
+                artifacts: 'results/*',
+                allowEmptyArchive: true
+            )
         }
     }
 }
