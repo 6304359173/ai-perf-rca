@@ -38,16 +38,24 @@ async def main():
     print("====================================")
     print(" AI Performance MCP Client")
     print("====================================")
-
     print()
+
     print(f"MCP Server: {SERVER_FILE}")
     print()
+
+    # --------------------------------------------------------
+    # MCP server configuration
+    # --------------------------------------------------------
 
     server_params = StdioServerParameters(
         command="python",
         args=[SERVER_FILE],
         env=None
     )
+
+    # --------------------------------------------------------
+    # Connect to MCP server
+    # --------------------------------------------------------
 
     async with stdio_client(server_params) as (
         read_stream,
@@ -59,13 +67,19 @@ async def main():
             write_stream
         ) as session:
 
+            # ------------------------------------------------
             # Initialize MCP connection
+            # ------------------------------------------------
+
             await session.initialize()
 
             print("MCP connection initialized.")
             print()
 
-            # Discover available tools
+            # ------------------------------------------------
+            # Discover available MCP tools
+            # ------------------------------------------------
+
             tools = await session.list_tools()
 
             print("Available MCP tools:")
@@ -75,7 +89,10 @@ async def main():
 
             print()
 
+            # ------------------------------------------------
             # Call RCA evidence tool
+            # ------------------------------------------------
+
             result = await session.call_tool(
                 "get_rca_evidence",
                 arguments={}
@@ -84,7 +101,44 @@ async def main():
             print("get_rca_evidence() executed.")
             print()
 
-            # Extract returned MCP content
+            # ------------------------------------------------
+            # Call Kubernetes metrics tool
+            # ------------------------------------------------
+
+            k8s_result = await session.call_tool(
+                "get_kubernetes_metrics",
+                arguments={}
+            )
+
+            print("get_kubernetes_metrics() executed.")
+            print()
+
+            # ------------------------------------------------
+            # Extract Kubernetes metrics
+            # ------------------------------------------------
+
+            kubernetes_metrics = {}
+
+            for content in k8s_result.content:
+
+                if hasattr(content, "text"):
+
+                    try:
+
+                        kubernetes_metrics = json.loads(
+                            content.text
+                        )
+
+                    except json.JSONDecodeError:
+
+                        kubernetes_metrics = {
+                            "raw_response": content.text
+                        }
+
+            # ------------------------------------------------
+            # Extract RCA evidence
+            # ------------------------------------------------
+
             evidence = {}
 
             for content in result.content:
@@ -92,6 +146,7 @@ async def main():
                 if hasattr(content, "text"):
 
                     try:
+
                         evidence = json.loads(
                             content.text
                         )
@@ -102,7 +157,20 @@ async def main():
                             "raw_response": content.text
                         }
 
-            # Save evidence
+            # ------------------------------------------------
+            # Add Kubernetes metrics to RCA evidence
+            # ------------------------------------------------
+
+            if "evidence" in evidence:
+
+                evidence["evidence"][
+                    "kubernetes_metrics"
+                ] = kubernetes_metrics
+
+            # ------------------------------------------------
+            # Save combined evidence
+            # ------------------------------------------------
+
             os.makedirs(
                 os.path.dirname(OUTPUT_FILE),
                 exist_ok=True
@@ -120,10 +188,19 @@ async def main():
                     indent=2
                 )
 
+            # ------------------------------------------------
+            # Completion message
+            # ------------------------------------------------
+
             print("MCP evidence saved.")
             print()
+
             print(f"Output: {OUTPUT_FILE}")
 
+
+# ============================================================
+# Main
+# ============================================================
 
 if __name__ == "__main__":
 

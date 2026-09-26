@@ -1,8 +1,8 @@
 import json
 import os
+import subprocess
 
 from mcp.server.mcpserver import MCPServer
-
 
 # ============================================================
 # AI Performance MCP Server
@@ -211,6 +211,55 @@ def get_rca_evidence() -> dict:
         return {
             "status": "ERROR",
             "message": "Unable to read RCA evidence.",
+            "details": str(error)
+        }
+# ============================================================
+# MCP Tool: Get Kubernetes Metrics
+# ============================================================
+
+@mcp.tool()
+def get_kubernetes_metrics() -> dict:
+    """
+    Return current Kubernetes node and pod CPU/memory metrics
+    from the Kubernetes Metrics Server.
+    """
+
+    try:
+
+        node_result = subprocess.run(
+            ["kubectl", "top", "nodes"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+
+        pod_result = subprocess.run(
+            ["kubectl", "top", "pods"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+
+        return {
+            "status": "SUCCESS",
+            "source": "Kubernetes Metrics Server",
+            "nodes": node_result.stdout.strip(),
+            "pods": pod_result.stdout.strip()
+        }
+
+    except subprocess.CalledProcessError as error:
+
+        return {
+            "status": "ERROR",
+            "message": "Unable to retrieve Kubernetes metrics.",
+            "details": error.stderr.strip()
+        }
+
+    except Exception as error:
+
+        return {
+            "status": "ERROR",
+            "message": "Unexpected error retrieving Kubernetes metrics.",
             "details": str(error)
         }
 # ============================================================
