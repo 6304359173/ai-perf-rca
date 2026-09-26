@@ -4,106 +4,118 @@ pipeline {
 
     environment {
 
-        // ============================================================
-        // Tools
-        // ============================================================
-
-        JMeterHome = 'C:\\apache-jmeter-5.6.3'
-
+        // =========================================================
+        // PYTHON
+        // =========================================================
         PYTHON_EXE = 'C:\\Users\\LENOVO\\AppData\\Local\\Programs\\Python\\Python314\\python.exe'
 
-        // ============================================================
-        // Application
-        // ============================================================
+        // =========================================================
+        // JMETER 5.6.3
+        // =========================================================
+        JMETER_CMD = 'C:\\Loadmagic\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3\\bin\\jmeter.bat'
 
-        APP_PORT = '3003'
-
-        // ============================================================
-        // JMeter configuration
-        // ============================================================
-
-        TEST_USERS = '10'
-        RAMP_UP = '30'
-        DURATION = '60'
-
-        // ============================================================
-        // Kubernetes
-        // ============================================================
+        // =========================================================
+        // KUBERNETES
+        // =========================================================
+        KUBECONFIG = 'C:\\Users\\LENOVO\\.kube\\config'
 
         K8S_CONTEXT = 'docker-desktop'
-
-        K8S_NAMESPACE = 'default'
 
         K8S_SERVICE = 'ai-perf-order-service'
 
         K8S_SERVICE_PORT = '3002'
 
-        K8S_LOCAL_PORT = '3003'
+        LOCAL_PORT = '3003'
 
-        // ============================================================
-        // Files
-        // ============================================================
+        // =========================================================
+        // JMETER PARAMETERS
+        // =========================================================
+        TEST_USERS = '10'
 
+        RAMP_UP = '30'
+
+        DURATION = '60'
+
+        // =========================================================
+        // PROJECT FILES
+        // =========================================================
         JMX_FILE = 'scripts\\ai_perf_test.jmx'
 
         JTL_FILE = 'scripts\\results.jtl'
 
         METRICS_FILE = 'python-engine\\metrics.json'
 
-        MCP_EVIDENCE_FILE = 'ai-engine\\mcp_rca_evidence.json'
+        // =========================================================
+        // MCP
+        // =========================================================
+        MCP_CLIENT = 'mcp-server\\mcp_client.py'
 
-        RCA_PROMPT_FILE = 'ai-engine\\ai_rca_prompt_from_mcp.txt'
+        MCP_EVIDENCE = 'ai-engine\\mcp_rca_evidence.json'
 
-        RCA_REPORT_FILE = 'ai-engine\\ai_rca_report.md'
+        // =========================================================
+        // AI RCA
+        // =========================================================
+        LLM_CLIENT = 'ai-engine\\llm_client.py'
+
+        RCA_PROMPT = 'ai-engine\\ai_rca_prompt_from_mcp.txt'
+
+        MOCK_RCA = 'ai-engine\\mock_ai_rca.py'
+
+        RCA_REPORT = 'ai-engine\\ai_rca_report.md'
     }
 
 
     stages {
 
-
-        // ============================================================
-        // 1. Checkout
-        // ============================================================
+        // =========================================================
+        // 1. CHECKOUT
+        // =========================================================
 
         stage('Checkout') {
 
             steps {
 
-                echo '============================================'
-                echo ' CHECKOUT SOURCE CODE'
-                echo '============================================'
+                echo '========================================'
+                echo 'CHECKOUT'
+                echo '========================================'
 
                 checkout scm
 
                 bat '''
-                    echo Current directory:
+                    echo.
+                    echo ===== WORKSPACE =====
                     cd
 
                     echo.
-                    echo Git branch:
-                    git branch --show-current
+                    echo ===== GIT VERSION =====
+                    git --version
 
                     echo.
-                    echo Git commit:
+                    echo ===== COMMIT =====
                     git rev-parse --short HEAD
+
+                    echo.
+                    echo ===== BRANCH =====
+                    git branch --show-current
                 '''
             }
         }
 
 
-        // ============================================================
-        // 2. Validate Environment
-        // ============================================================
+        // =========================================================
+        // 2. ENVIRONMENT CHECK
+        // =========================================================
 
-        stage('Validate Environment') {
+        stage('Environment Check') {
 
             steps {
 
-                echo '============================================'
-                echo ' VALIDATE ENVIRONMENT'
-                echo '============================================'
+                echo '========================================'
+                echo 'ENVIRONMENT CHECK'
+                echo '========================================'
 
                 bat '''
+                    echo.
                     echo ===== JAVA =====
                     java -version
 
@@ -120,10 +132,6 @@ pipeline {
                     npm --version
 
                     echo.
-                    echo ===== GIT =====
-                    git --version
-
-                    echo.
                     echo ===== DOCKER =====
                     docker --version
 
@@ -133,198 +141,257 @@ pipeline {
 
                     echo.
                     echo ===== JMETER =====
-                    "%JMeterHome%\\bin\\jmeter.bat" --version
+                    "%JMETER_CMD%" --version
                 '''
             }
         }
 
 
-        // ============================================================
-        // 3. Validate Project Files
-        // ============================================================
+        // =========================================================
+        // 3. VALIDATE FILES
+        // =========================================================
 
-        stage('Validate Project Files') {
+        stage('Validate Project') {
 
             steps {
 
-                echo '============================================'
-                echo ' VALIDATE PROJECT FILES'
-                echo '============================================'
+                echo '========================================'
+                echo 'VALIDATE PROJECT'
+                echo '========================================'
 
                 bat '''
-                    echo ===== PROJECT STRUCTURE =====
+                    echo Checking project files...
 
                     if not exist "%JMX_FILE%" (
-                        echo ERROR: JMeter test plan not found.
+                        echo ERROR: JMeter file not found:
+                        echo %JMX_FILE%
                         exit /b 1
                     )
 
                     if not exist "python-engine\\analyzer.py" (
-                        echo ERROR: analyzer.py not found.
-                        exit /b 1
-                    )
-
-                    if not exist "python-engine\\kubernetes_metrics.py" (
-                        echo ERROR: kubernetes_metrics.py not found.
+                        echo ERROR: analyzer.py not found
                         exit /b 1
                     )
 
                     if not exist "mcp-server\\performance_mcp.py" (
-                        echo ERROR: performance_mcp.py not found.
+                        echo ERROR: performance_mcp.py not found
                         exit /b 1
                     )
 
-                    if not exist "mcp-server\\mcp_client.py" (
-                        echo ERROR: mcp_client.py not found.
+                    if not exist "%MCP_CLIENT%" (
+                        echo ERROR: mcp_client.py not found
                         exit /b 1
                     )
 
-                    if not exist "ai-engine\\llm_client.py" (
-                        echo ERROR: llm_client.py not found.
+                    if not exist "%LLM_CLIENT%" (
+                        echo ERROR: llm_client.py not found
                         exit /b 1
                     )
 
                     echo.
-                    echo All required project files exist.
+                    echo All required files exist.
                 '''
             }
         }
 
 
-        // ============================================================
-        // 4. Validate Kubernetes
-        // ============================================================
+        // =========================================================
+        // 4. KUBERNETES CHECK
+        // =========================================================
 
-        stage('Validate Kubernetes') {
+        stage('Kubernetes Check') {
 
             steps {
 
-                echo '============================================'
-                echo ' VALIDATE KUBERNETES'
-                echo '============================================'
+                echo '========================================'
+                echo 'KUBERNETES CHECK'
+                echo '========================================'
 
                 bat '''
-                    echo ===== KUBERNETES CONTEXT =====
-
-                    kubectl config use-context "%K8S_CONTEXT%"
+                    set KUBECONFIG=%KUBECONFIG%
 
                     echo.
+                    echo ===== CURRENT CONTEXT =====
                     kubectl config current-context
 
                     echo.
                     echo ===== NODES =====
-
-                    kubectl get nodes -o wide
+                    kubectl get nodes
 
                     echo.
-                    echo ===== ORDER SERVICE PODS =====
-
-                    kubectl get pods -l app=ai-perf-order-service -o wide
+                    echo ===== APPLICATION PODS =====
+                    kubectl get pods -l app=ai-perf-order-service
 
                     echo.
                     echo ===== SERVICE =====
-
-                    kubectl get service "%K8S_SERVICE%"
+                    kubectl get service %K8S_SERVICE%
 
                     echo.
                     echo ===== ENDPOINTS =====
-
-                    kubectl get endpoints "%K8S_SERVICE%"
+                    kubectl get endpoints %K8S_SERVICE%
                 '''
             }
         }
 
 
-        // ============================================================
-        // 5. Start Kubernetes Port Forward
-        // ============================================================
+        // =========================================================
+        // 5. START PORT FORWARD
+        // =========================================================
 
         stage('Start Kubernetes Port Forward') {
 
             steps {
 
-                echo '============================================'
-                echo ' START KUBERNETES PORT FORWARD'
-                echo '============================================'
+                echo '========================================'
+                echo 'START KUBERNETES PORT FORWARD'
+                echo '========================================'
 
                 bat '''
-                    echo ===== CHECK PORT =====
+                    set KUBECONFIG=%KUBECONFIG%
 
-                    netstat -ano | findstr :%K8S_LOCAL_PORT%
+                    echo.
+                    echo ===== CHECK PORT 3003 =====
+
+                    netstat -ano | findstr :3003
+
+                    echo.
+                    echo ===== STOP PROCESS USING PORT 3003 =====
+
+                    for /f "tokens=5" %%A in ('netstat -ano ^| findstr :3003 ^| findstr LISTENING') do (
+                        echo Stopping PID %%A
+                        taskkill /PID %%A /T /F >nul 2>&1
+                    )
+
+                    timeout /t 2 /nobreak >nul
+
+                    echo.
+                    echo ===== CLEAN OLD LOG =====
+
+                    if exist k8s-port-forward.log (
+                        del /f /q k8s-port-forward.log
+                    )
 
                     echo.
                     echo ===== START PORT FORWARD =====
 
-                    powershell -NoProfile -Command "$p = Start-Process kubectl -ArgumentList 'port-forward','service/%K8S_SERVICE%','%K8S_LOCAL_PORT%:%K8S_SERVICE_PORT%','--context=%K8S_CONTEXT%' -RedirectStandardOutput 'k8s-port-forward.out.log' -RedirectStandardError 'k8s-port-forward.err.log' -PassThru; Set-Content -Path 'k8s-port-forward.pid' -Value $p.Id; Write-Host ('Port-forward PID: ' + $p.Id)"
+                    start "" /b cmd /c "kubectl --kubeconfig C:\\Users\\LENOVO\\.kube\\config port-forward service/ai-perf-order-service 3003:3002 > k8s-port-forward.log 2>&1"
 
                     echo.
-                    echo ===== WAIT FOR PORT FORWARD =====
-
-                    powershell -NoProfile -Command "$ok=$false; for($i=1;$i -le 20;$i++){ try { $r=Invoke-WebRequest -UseBasicParsing http://127.0.0.1:%K8S_LOCAL_PORT%/health -TimeoutSec 2; if($r.StatusCode -eq 200){ Write-Host 'PORT FORWARD READY'; $ok=$true; break } } catch { Start-Sleep -Seconds 1 } }; if(-not $ok){ Write-Host 'PORT FORWARD FAILED'; if(Test-Path 'k8s-port-forward.out.log'){Get-Content 'k8s-port-forward.out.log'}; if(Test-Path 'k8s-port-forward.err.log'){Get-Content 'k8s-port-forward.err.log'}; exit 1 }"
+                    echo Port-forward process started.
 
                     echo.
-                    echo ===== APPLICATION HEALTH =====
+                    echo ===== WAIT =====
 
-                    curl.exe -s http://127.0.0.1:%K8S_LOCAL_PORT%/health
+                    timeout /t 5 /nobreak >nul
 
                     echo.
+                    echo ===== PORT STATUS =====
+
+                    netstat -ano | findstr :3003
+
+                    echo.
+                    echo ===== HEALTH CHECK =====
+
+                    curl.exe -s http://127.0.0.1:3003/health
+
+                    if errorlevel 1 (
+                        echo.
+                        echo ERROR: Application health check failed.
+
+                        echo.
+                        echo ===== PORT FORWARD LOG =====
+
+                        if exist k8s-port-forward.log (
+                            type k8s-port-forward.log
+                        )
+
+                        exit /b 1
+                    )
+
+                    echo.
+                    echo.
+                    echo PORT FORWARD READY
                 '''
             }
         }
 
 
-        // ============================================================
-        // 6. Validate Application
-        // ============================================================
+        // =========================================================
+        // 6. APPLICATION VALIDATION
+        // =========================================================
 
-        stage('Validate Application') {
+        stage('Application Validation') {
 
             steps {
 
-                echo '============================================'
-                echo ' VALIDATE APPLICATION'
-                echo '============================================'
+                echo '========================================'
+                echo 'APPLICATION VALIDATION'
+                echo '========================================'
 
                 bat '''
+                    echo.
                     echo ===== HEALTH =====
 
-                    curl.exe -s http://127.0.0.1:%APP_PORT%/health
+                    curl.exe -s http://127.0.0.1:3003/health
+
+                    if errorlevel 1 (
+                        echo ERROR: Health endpoint failed
+                        exit /b 1
+                    )
 
                     echo.
                     echo.
                     echo ===== PRODUCTS =====
 
-                    curl.exe -s http://127.0.0.1:%APP_PORT%/products
+                    curl.exe -s http://127.0.0.1:3003/products
+
+                    if errorlevel 1 (
+                        echo ERROR: Products endpoint failed
+                        exit /b 1
+                    )
 
                     echo.
                     echo.
-                    echo Application validation completed.
+                    echo Application validation successful.
                 '''
             }
         }
 
 
-        // ============================================================
-        // 7. Kubernetes Metrics
-        // ============================================================
+        // =========================================================
+        // 7. KUBERNETES METRICS
+        // =========================================================
 
-        stage('Collect Kubernetes Metrics') {
+        stage('Kubernetes Metrics') {
 
             steps {
 
-                echo '============================================'
-                echo ' KUBERNETES METRICS'
-                echo '============================================'
+                echo '========================================'
+                echo 'KUBERNETES METRICS'
+                echo '========================================'
 
                 bat '''
+                    set KUBECONFIG=%KUBECONFIG%
+
+                    echo.
                     echo ===== NODE METRICS =====
 
                     kubectl top nodes
+
+                    if errorlevel 1 (
+                        echo ERROR: kubectl top nodes failed
+                        exit /b 1
+                    )
 
                     echo.
                     echo ===== POD METRICS =====
 
                     kubectl top pods
+
+                    if errorlevel 1 (
+                        echo ERROR: kubectl top pods failed
+                        exit /b 1
+                    )
 
                     echo.
                     echo ===== APPLICATION POD METRICS =====
@@ -335,56 +402,69 @@ pipeline {
         }
 
 
-        // ============================================================
-        // 8. Run JMeter
-        // ============================================================
+        // =========================================================
+        // 8. RUN JMETER
+        // =========================================================
 
-        stage('Run JMeter Performance Test') {
+        stage('Run JMeter') {
 
             steps {
 
-                echo '============================================'
-                echo ' RUN JMETER PERFORMANCE TEST'
-                echo '============================================'
+                echo '========================================'
+                echo 'RUN JMETER PERFORMANCE TEST'
+                echo '========================================'
 
                 bat '''
+                    echo.
+                    echo ===== JMETER VERSION =====
+
+                    "%JMETER_CMD%" --version
+
+                    echo.
+                    echo ===== TEST CONFIGURATION =====
+
+                    echo Users    = %TEST_USERS%
+                    echo Ramp Up  = %RAMP_UP%
+                    echo Duration = %DURATION%
+
+                    echo.
+                    echo ===== TARGET =====
+
+                    echo http://localhost:3003
+
+                    echo.
+                    echo ===== DELETE OLD JTL =====
+
                     if exist "%JTL_FILE%" (
                         del /f /q "%JTL_FILE%"
                     )
 
-                    echo ===== JMETER CONFIGURATION =====
-
-                    echo Users    : %TEST_USERS%
-                    echo Ramp-up  : %RAMP_UP% seconds
-                    echo Duration : %DURATION% seconds
-                    echo Target   : http://localhost:%APP_PORT%
-
                     echo.
-                    echo ===== RUN JMETER =====
+                    echo ===== START JMETER =====
 
-                    "%JMeterHome%\\bin\\jmeter.bat" ^
-                        -n ^
+                    "%JMETER_CMD%" -n ^
                         -JTEST_USERS=%TEST_USERS% ^
                         -JRAMP_UP=%RAMP_UP% ^
                         -JDURATION=%DURATION% ^
                         -t "%JMX_FILE%" ^
                         -l "%JTL_FILE%"
 
-                    if %ERRORLEVEL% NEQ 0 (
+                    if errorlevel 1 (
+                        echo.
                         echo ERROR: JMeter execution failed.
                         exit /b 1
                     )
 
                     echo.
-                    echo JMeter execution completed.
+                    echo ===== JMETER COMPLETED =====
 
                     if not exist "%JTL_FILE%" (
-                        echo ERROR: results.jtl was not generated.
+                        echo ERROR: JTL file was not created.
                         exit /b 1
                     )
 
                     echo.
-                    echo ===== RESULTS FILE =====
+                    echo ===== RESULT FILE =====
 
                     dir "%JTL_FILE%"
                 '''
@@ -392,35 +472,39 @@ pipeline {
         }
 
 
-        // ============================================================
-        // 9. Analyze Performance
-        // ============================================================
+        // =========================================================
+        // 9. PYTHON ANALYSIS
+        // =========================================================
 
-        stage('Analyze Performance') {
+        stage('Performance Analysis') {
 
             steps {
 
-                echo '============================================'
-                echo ' PYTHON PERFORMANCE ANALYSIS'
-                echo '============================================'
+                echo '========================================'
+                echo 'PYTHON PERFORMANCE ANALYSIS'
+                echo '========================================'
 
                 bat '''
+                    echo.
                     echo ===== RUN ANALYZER =====
 
                     "%PYTHON_EXE%" python-engine\\analyzer.py
 
-                    if %ERRORLEVEL% NEQ 0 (
-                        echo ERROR: Performance analyzer failed.
+                    if errorlevel 1 (
+                        echo ERROR: analyzer.py failed
                         exit /b 1
                     )
 
                     echo.
-                    echo ===== METRICS FILE =====
+                    echo ===== VERIFY METRICS =====
 
                     if not exist "%METRICS_FILE%" (
-                        echo ERROR: metrics.json was not generated.
+                        echo ERROR: metrics.json was not created
                         exit /b 1
                     )
+
+                    echo.
+                    echo ===== PERFORMANCE METRICS =====
 
                     type "%METRICS_FILE%"
                 '''
@@ -428,189 +512,192 @@ pipeline {
         }
 
 
-        // ============================================================
-        // 10. Collect MCP Evidence
-        // ============================================================
+        // =========================================================
+        // 10. MCP
+        // =========================================================
 
-        stage('Collect MCP Evidence') {
+        stage('MCP Evidence') {
 
             steps {
 
-                echo '============================================'
-                echo ' COLLECT MCP EVIDENCE'
-                echo '============================================'
+                echo '========================================'
+                echo 'MCP PERFORMANCE EVIDENCE'
+                echo '========================================'
 
                 bat '''
-                    echo ===== MCP ENVIRONMENT =====
-
-                    echo Python:
-                    "%PYTHON_EXE%" --version
+                    set KUBECONFIG=%KUBECONFIG%
 
                     echo.
-                    echo Kubectl:
-                    where kubectl
+                    echo ===== KUBERNETES CONTEXT =====
 
-                    echo.
-                    echo Kubectl version:
-                    kubectl version --client
-
-                    echo.
-                    echo Kubernetes context:
                     kubectl config current-context
 
                     echo.
-                    echo Kubernetes nodes:
+                    echo ===== KUBERNETES METRICS =====
+
                     kubectl top nodes
 
                     echo.
-                    echo Kubernetes pods:
+                    echo.
+
                     kubectl top pods
 
                     echo.
                     echo ===== RUN MCP CLIENT =====
 
-                    "%PYTHON_EXE%" mcp-server\\mcp_client.py
+                    "%PYTHON_EXE%" "%MCP_CLIENT%"
 
-                    if %ERRORLEVEL% NEQ 0 (
-                        echo ERROR: MCP evidence collection failed.
+                    if errorlevel 1 (
+                        echo ERROR: MCP client failed
                         exit /b 1
                     )
 
                     echo.
                     echo ===== VERIFY MCP EVIDENCE =====
 
-                    if not exist "%MCP_EVIDENCE_FILE%" (
-                        echo ERROR: MCP evidence file was not generated.
+                    if not exist "%MCP_EVIDENCE%" (
+                        echo ERROR: MCP evidence file was not created
                         exit /b 1
                     )
 
                     echo.
                     echo ===== MCP EVIDENCE =====
 
-                    type "%MCP_EVIDENCE_FILE%"
+                    type "%MCP_EVIDENCE%"
                 '''
             }
         }
 
 
-        // ============================================================
-        // 11. Generate AI RCA Prompt
-        // ============================================================
+        // =========================================================
+        // 11. AI RCA
+        // =========================================================
 
-        stage('Generate AI RCA') {
+        stage('AI RCA') {
 
             steps {
 
-                echo '============================================'
-                echo ' GENERATE AI RCA'
-                echo '============================================'
+                echo '========================================'
+                echo 'AI PERFORMANCE RCA'
+                echo '========================================'
 
                 bat '''
+                    echo.
                     echo ===== RUN LLM CLIENT =====
 
-                    "%PYTHON_EXE%" ai-engine\\llm_client.py
-
-                    if %ERRORLEVEL% NEQ 0 (
-                        echo WARNING: LLM client returned an error.
-                    )
+                    "%PYTHON_EXE%" "%LLM_CLIENT%"
 
                     echo.
                     echo ===== RCA PROMPT =====
 
-                    if exist "%RCA_PROMPT_FILE%" (
-                        type "%RCA_PROMPT_FILE%"
+                    if exist "%RCA_PROMPT%" (
+                        type "%RCA_PROMPT%"
                     ) else (
-                        echo RCA prompt file was not generated.
+                        echo RCA prompt was not generated.
                     )
                 '''
             }
         }
 
 
-        // ============================================================
-        // 12. Generate Deterministic RCA Report
-        // ============================================================
+        // =========================================================
+        // 12. RCA REPORT
+        // =========================================================
 
         stage('Generate RCA Report') {
 
             steps {
 
-                echo '============================================'
-                echo ' GENERATE RCA REPORT'
-                echo '============================================'
+                echo '========================================'
+                echo 'GENERATE RCA REPORT'
+                echo '========================================'
 
                 bat '''
-                    echo ===== GENERATE REPORT =====
+                    if exist "%MOCK_RCA%" (
 
-                    if exist "ai-engine\\mock_ai_rca.py" (
+                        echo.
+                        echo ===== RUN MOCK RCA =====
 
-                        "%PYTHON_EXE%" ai-engine\\mock_ai_rca.py
+                        "%PYTHON_EXE%" "%MOCK_RCA%"
 
-                        if %ERRORLEVEL% NEQ 0 (
-                            echo WARNING: RCA report generation returned an error.
+                        if errorlevel 1 (
+                            echo WARNING: RCA generation returned an error
                         )
 
                     ) else (
 
-                        echo mock_ai_rca.py not found.
-                        echo Skipping deterministic RCA report.
+                        echo mock_ai_rca.py not found
+                        echo Skipping mock RCA generation
 
                     )
 
                     echo.
                     echo ===== RCA REPORT =====
 
-                    if exist "%RCA_REPORT_FILE%" (
-                        type "%RCA_REPORT_FILE%"
+                    if exist "%RCA_REPORT%" (
+                        type "%RCA_REPORT%"
                     ) else (
-                        echo RCA report was not generated.
+                        echo RCA report not available
                     )
                 '''
             }
         }
 
 
-        // ============================================================
-        // 13. Prepare Artifacts
-        // ============================================================
+        // =========================================================
+        // 13. PREPARE ARTIFACTS
+        // =========================================================
 
         stage('Prepare Artifacts') {
 
             steps {
 
-                echo '============================================'
-                echo ' PREPARE JENKINS ARTIFACTS'
-                echo '============================================'
+                echo '========================================'
+                echo 'PREPARE JENKINS ARTIFACTS'
+                echo '========================================'
 
                 bat '''
                     if not exist results (
                         mkdir results
                     )
 
-                    echo ===== COPY PERFORMANCE RESULTS =====
+                    echo.
+                    echo ===== COPY JTL =====
 
                     if exist "%JTL_FILE%" (
                         copy /Y "%JTL_FILE%" "results\\results.jtl"
                     )
 
+                    echo.
+                    echo ===== COPY METRICS =====
+
                     if exist "%METRICS_FILE%" (
                         copy /Y "%METRICS_FILE%" "results\\metrics.json"
                     )
 
-                    if exist "%MCP_EVIDENCE_FILE%" (
-                        copy /Y "%MCP_EVIDENCE_FILE%" "results\\mcp_rca_evidence.json"
-                    )
+                    echo.
+                    echo ===== COPY MCP EVIDENCE =====
 
-                    if exist "%RCA_PROMPT_FILE%" (
-                        copy /Y "%RCA_PROMPT_FILE%" "results\\ai_rca_prompt_from_mcp.txt"
-                    )
-
-                    if exist "%RCA_REPORT_FILE%" (
-                        copy /Y "%RCA_REPORT_FILE%" "results\\ai_rca_report.md"
+                    if exist "%MCP_EVIDENCE%" (
+                        copy /Y "%MCP_EVIDENCE%" "results\\mcp_rca_evidence.json"
                     )
 
                     echo.
-                    echo ===== ARTIFACTS =====
+                    echo ===== COPY RCA PROMPT =====
+
+                    if exist "%RCA_PROMPT%" (
+                        copy /Y "%RCA_PROMPT%" "results\\ai_rca_prompt_from_mcp.txt"
+                    )
+
+                    echo.
+                    echo ===== COPY RCA REPORT =====
+
+                    if exist "%RCA_REPORT%" (
+                        copy /Y "%RCA_REPORT%" "results\\ai_rca_report.md"
+                    )
+
+                    echo.
+                    echo ===== RESULTS =====
 
                     dir results
                 '''
@@ -619,46 +706,37 @@ pipeline {
     }
 
 
-    // ================================================================
-    // POST ACTIONS
-    // ================================================================
+    // =============================================================
+    // POST
+    // =============================================================
 
     post {
 
         always {
 
-            echo '============================================'
-            echo ' POST BUILD CLEANUP'
-            echo '============================================'
+            echo '========================================'
+            echo 'CLEANUP'
+            echo '========================================'
 
             bat '''
-                echo ===== PORT FORWARD CLEANUP =====
+                echo.
+                echo ===== STOP PORT FORWARD =====
 
-                if exist k8s-port-forward.pid (
-
-                    set /p K8S_PID=<k8s-port-forward.pid
-
-                    echo Port-forward PID: %K8S_PID%
-
-                    taskkill /PID %K8S_PID% /T /F >nul 2>&1
-
-                    del /f /q k8s-port-forward.pid >nul 2>&1
+                for /f "tokens=5" %%A in ('netstat -ano ^| findstr :3003 ^| findstr LISTENING') do (
+                    echo Stopping PID %%A
+                    taskkill /PID %%A /T /F >nul 2>&1
                 )
 
                 echo.
-                echo ===== CHECK PORT =====
+                echo ===== PORT STATUS AFTER CLEANUP =====
 
-                netstat -ano | findstr :%K8S_LOCAL_PORT%
+                netstat -ano | findstr :3003
 
                 echo.
-                echo ===== PORT FORWARD LOGS =====
+                echo ===== PORT FORWARD LOG =====
 
-                if exist k8s-port-forward.out.log (
-                    type k8s-port-forward.out.log
-                )
-
-                if exist k8s-port-forward.err.log (
-                    type k8s-port-forward.err.log
+                if exist k8s-port-forward.log (
+                    type k8s-port-forward.log
                 )
             '''
         }
@@ -666,17 +744,17 @@ pipeline {
 
         success {
 
-            echo '============================================'
-            echo ' AI PERFORMANCE PIPELINE SUCCESS'
-            echo '============================================'
+            echo '========================================'
+            echo 'AI-PERF-RCA PIPELINE SUCCESS'
+            echo '========================================'
         }
 
 
         failure {
 
-            echo '============================================'
-            echo ' AI PERFORMANCE PIPELINE FAILED'
-            echo '============================================'
+            echo '========================================'
+            echo 'AI-PERF-RCA PIPELINE FAILED'
+            echo '========================================'
         }
     }
 }
